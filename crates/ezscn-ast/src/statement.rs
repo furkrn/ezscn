@@ -1,0 +1,75 @@
+use ezscn_tokens::Span;
+use thin_vec::ThinVec;
+
+use crate::{Identifier, Block};
+use crate::expression::Expression;
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct Statement<'e> {
+    pub kind: StatementKind<'e>,
+    pub span: Span,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum StatementKind<'e> {
+    Expression(Expression<'e>),
+    Return(Expression<'e>),
+    Let(ThinVec<IdentifierOrUnderscore<'e>>, Option<Expression<'e>>),
+    If(IfStatement<'e>),
+    Match(MatchStatement<'e>),
+    ForLoop(ForLoopStatement<'e>),
+    WhileLoop(WhileLoopStatement<'e>),
+    Break,
+    Continue,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum IdentifierOrUnderscore<'i> {
+    Identifier(Identifier<'i>),
+    Underscore,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct IfStatement<'e> {
+    pub if_arm: IfArm<'e>,
+    pub else_if_arms: ThinVec<IfArm<'e>>,
+    pub else_arm: Option<Block<'e>>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct IfArm<'e> {
+    pub clause: Expression<'e>,
+    pub block: Block<'e>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct MatchStatement<'e> {
+    pub matcher: Expression<'e>,
+    pub arms: ThinVec<MatchArm<'e>>,
+    pub default_arm: Option<Block<'e>>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct MatchArm<'e> {
+    pub clause: Expression<'e>,
+    pub block: Block<'e>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum WaitStatementKind<'e> {
+    Expression(Expression<'e>),
+    Until(Identifier<'e>),
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct ForLoopStatement<'e> {
+    pub identifier: Identifier<'e>,
+    pub expression: Expression<'e>,
+    pub block: Block<'e>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct WhileLoopStatement<'e> {
+    pub expression: Expression<'e>,
+    pub block: Block<'e>,
+}

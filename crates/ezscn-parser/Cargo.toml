@@ -1,0 +1,12 @@
+[package]
+name = "ezscn-parser"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+ezscn-ast = { path = "../ezscn-ast", version = "0.0.1" }
+ezscn-lexer = { path = "../ezscn-lexer", version = "0.0.1" }
+ezscn-tokens = { path = "../ezscn-tokens", version = "0.0.1" }
+ezscn-error = { path = "../ezscn-error", version = "0.0.1" }
+ordered-float = "5.3.0"
+thin-vec = "0.2.18"

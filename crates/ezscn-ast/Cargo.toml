@@ -1,0 +1,9 @@
+[package]
+name = "ezscn-ast"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+ezscn-tokens = { path = "../ezscn-tokens", version = "0.0.1" }
+ordered-float = "5.3.0"
+thin-vec = "0.2.18"

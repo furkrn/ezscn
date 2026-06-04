@@ -1,0 +1,8 @@
+[package]
+name = "ezscn-lexer"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+unicode-ident = "1.0.24"
+ezscn-tokens = { version = "0.0.1", path = "../ezscn-tokens" }
