@@ -2,7 +2,6 @@
 
 use core::iter::{Iterator, Peekable};
 use core::str::CharIndices;
-use core::range::Range;
 use ezscn_tokens::{BaseN, CharacterEscapeType, Token,
     TokenKind, Span, SpanImpl, StringOptions};
 use unicode_ident::{is_xid_continue, is_xid_start};
@@ -206,7 +205,7 @@ impl<'a> TokenStreamInner<'a> {
             }
             c if is_xid_start(c) => {
                 let range = self.consume_while_procedure(|_, c| is_xid_continue(c))
-                    .unwrap_or_else(|| Range { start, end: start + current_char.len_utf8() });
+                    .unwrap_or_else(|| Span { start, end: start + current_char.len_utf8() });
 
                 let str = &self.raw[start..range.end];
                 if self.peek_char().is_some_and(|(_, c)| c == '"') {
@@ -450,7 +449,7 @@ impl<'a> TokenStreamInner<'a> {
     }
 
     #[inline]
-    fn char_sequence(&mut self) -> Option<(CharacterEscapeType, Range<usize>)> {
+    fn char_sequence(&mut self) -> Option<(CharacterEscapeType, Span)> {
         #[inline]
         fn escaped<'t>(ts: &mut TokenStreamInner<'t>) -> Option<(CharacterEscapeType, usize)> {
             match ts.consume_char()? {
@@ -477,7 +476,7 @@ impl<'a> TokenStreamInner<'a> {
             c => (CharacterEscapeType::None, start + c.len_utf8()),
         };
 
-        Some((char_type, Range { start, end }))
+        Some((char_type, Span { start, end }))
     }
 
     #[inline]
@@ -506,7 +505,7 @@ impl<'a> TokenStreamInner<'a> {
             result
     }
 
-    pub(crate) fn consume_while_procedure<F>(&mut self, mut f: F) -> Option<Range<usize>>
+    pub(crate) fn consume_while_procedure<F>(&mut self, mut f: F) -> Option<Span>
         where F: FnMut(usize, char) -> bool {
             let mut start = None;
             let mut end = 0;
@@ -519,11 +518,11 @@ impl<'a> TokenStreamInner<'a> {
             }
 
             let start = start?;
-            Some(Range { start, end })
+            Some(Span { start, end })
     }
 
     #[inline]
-    pub(crate) fn consume_n_times(&mut self, n: usize) -> Option<Range<usize>> {
+    pub(crate) fn consume_n_times(&mut self, n: usize) -> Option<Span> {
         if n == 0 {
             return None
         }
@@ -537,7 +536,7 @@ impl<'a> TokenStreamInner<'a> {
             }
         }
 
-        Some(Range { start, end })
+        Some(Span { start, end })
     }
 }
 
