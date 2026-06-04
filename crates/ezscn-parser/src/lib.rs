@@ -8,7 +8,7 @@ use ezscn_ast::expression::Expression;
 use ezscn_ast::statement::Statement;
 use ezscn_error::{ParseError, ParseErrorKind};
 use ezscn_lexer::TokenStream;
-use ezscn_tokens::{Span, Spanned, Token, TokenKind};
+use ezscn_tokens::{Span, SpanImpl, Spanned, Token, TokenKind};
 use thin_vec::{thin_vec, ThinVec};
 
 pub mod expression;

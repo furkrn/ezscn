@@ -2,9 +2,9 @@
 
 use core::iter::{Iterator, Peekable};
 use core::str::CharIndices;
-use core::ops::Range;
+use core::range::Range;
 use ezscn_tokens::{BaseN, CharacterEscapeType, Token,
-    TokenKind, Span, StringOptions};
+    TokenKind, Span, SpanImpl, StringOptions};
 use unicode_ident::{is_xid_continue, is_xid_start};
 
 #[derive(Debug)]

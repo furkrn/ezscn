@@ -1,7 +1,7 @@
 use ezscn_ast::*;
 use ezscn_ast::statement::*;
 use ezscn_error::{ParseError, ParseErrorKind};
-use ezscn_tokens::{Span, Spanned, Token, TokenKind};
+use ezscn_tokens::{Span, SpanImpl, Spanned, Token, TokenKind};
 use thin_vec::thin_vec;
 
 use crate::Parser;

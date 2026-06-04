@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use core::str::FromStr;
 use ezscn_ast::expression::*;
 use ezscn_tokens::{BaseN, CharacterEscapeType, Token,
-    TokenKind, Span, StringOptions};
+    TokenKind, Span, SpanImpl, StringOptions};
 use ordered_float::OrderedFloat;
 
 use crate::statement::block;

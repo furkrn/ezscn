@@ -1,7 +1,7 @@
 use core::iter::{Peekable, Iterator};
 use core::str::Chars;
 use ezscn_error::{ParseError, ParseErrorKind};
-use ezscn_tokens::{Span};
+use ezscn_tokens::{Span, SpanImpl};
 use thin_vec::ThinVec;
 
 #[derive(Debug)]

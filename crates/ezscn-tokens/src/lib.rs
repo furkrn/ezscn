@@ -2,85 +2,67 @@
 
 use bitflags::bitflags;
 use core::fmt::{Display, Formatter, Result as DisplayResult};
-use core::ops::{Index, Range};
+use core::range::Range;
 
-impl Index<Span> for str {
-    type Output = str;
-
-    fn index(&self, index: Span) -> &Self::Output {
-        &self[index.start..index.end]
+pub type Span = Range<usize>;
+trait Seal {}
+#[allow(private_bounds, reason = "This is a sealed trait which would be only used for SpanImpl.")]
+pub trait SpanImpl: Seal + Eq + PartialEq {
+    type Item: Eq + PartialEq;
+    
+    fn new(start: Self::Item, end: Self::Item) -> Self;
+    fn empty_from_start(start: Self::Item) -> Self;
+    fn new_spanned(start_span: Self, end_span: Self) -> Self;
+    fn start(&self) -> Self::Item;
+    fn end(&self) -> Self::Item;
+    fn shift_start_right(self, l: Self::Item) -> Self;
+    fn shift_end_left(self, r: Self::Item) -> Self;
+    
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.start() == self.end()
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Span {
-    start: usize,
-    end: usize
-}
+impl Seal for Span {}
+impl SpanImpl for Span {
+    type Item = usize;
 
-impl From<Range<usize>> for Span {
     #[inline]
-    fn from(value: Range<usize>) -> Self {
-        Self {
-            start: value.start,
-            end: value.end
-        }
-    }
-}
-
-impl Display for Span {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> DisplayResult {
-        write!(f, "Start: {} - End: {}", self.start, self.end)
-    }
-}
-
-impl Span {
-    #[inline]
-    pub const fn new(start: usize, end: usize) -> Self {
-        if start > end {
-            panic!("Start cannot be greater than end.")
-        }
-
+    fn new(start: Self::Item, end: Self::Item) -> Self {
         Self { start, end }
     }
 
     #[inline]
-    pub const fn empty_from_start(start: usize) -> Self {
-        Span { start, end: start }
+    fn empty_from_start(start: Self::Item) -> Self {
+        Self { start, end: start }
     }
 
     #[inline]
-    pub const fn new_spanned(start_span: Self, end_span: Self) -> Self {
-        Span { start: start_span.start, end: end_span.end }
+    fn new_spanned(start_span: Self, end_span: Self) -> Self {
+        Self { start: start_span.start, end: end_span.end }
     }
 
     #[inline]
-    pub const fn is_empty(&self) -> bool {
-        self.start == self.end
-    }
-
-    #[inline]
-    pub const fn start(&self) -> usize {
+    fn start(&self) -> Self::Item {
         self.start
     }
 
     #[inline]
-    pub const fn end(&self) -> usize {
+    fn end(&self) -> Self::Item {
         self.end
     }
 
     #[inline]
-    pub const fn shift_start_right(self, l: usize) -> Self {
-        Span {
+    fn shift_start_right(self, l: Self::Item) -> Self {
+        Self {
             start: self.start + l,
             end: self.end
         }
     }
 
-    #[inline]
-    pub const fn shift_end_left(self, r: usize) -> Self {
-        Span {
+    fn shift_end_left(self, r: Self::Item) -> Self {
+        Self {
             start: self.start,
             end: self.end - r
         }
