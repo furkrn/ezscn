@@ -16,8 +16,20 @@ pub fn expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 
 #[inline]
 pub fn assignment_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = ternary_expression(parser)?;
-    let Some(op) = parser.next_if_map(|t| {
+    let mut left = ternary_expression(parser)?;
+    while let Some(op) = assignment_op(parser) {
+        let right = ternary_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Assignment(Box::new(left), op, Box::new(right));
+        left = Expression { kind, span }
+    }
+
+    Some(left)
+}
+
+#[inline]
+fn assignment_op(parser: &mut Parser<'_>) -> Option<AssignmentOperator> {
+    parser.next_if_map(|t| {
         match t {
             Some(Token { kind: TokenKind::Equals, .. }) =>
                 Ok(AssignmentOperator::Assign),
@@ -45,15 +57,7 @@ pub fn assignment_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'
                 Ok(AssignmentOperator::Modulo),
             token => Err(token),
         }
-    }) else {
-        return Some(left)
-    };
-
-    let right = ternary_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Assignment(Box::new(left), op, Box::new(right));
-
-    Some(Expression { span, kind })
+    })
 }
 
 #[inline]
@@ -74,80 +78,85 @@ pub fn ternary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
 
 #[inline]
 pub fn conditional_or_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = conditional_and_expression(parser)?;
-    if parser.next_if(|t| t.kind == TokenKind::OrOr).is_none() {
-        return Some(left)
+    let mut left = conditional_and_expression(parser)?;
+    while parser.next_if(|t| t.kind == TokenKind::OrOr).is_some() {
+        let right = conditional_and_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Conditional(Box::new(left), ConditionalOperator::Or, Box::new(right));
+        left = Expression { kind, span }
     }
 
-    let right = conditional_and_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Conditional(Box::new(left), ConditionalOperator::Or, Box::new(right));
-
-    Some(Expression { kind, span })
+    Some(left)
 }
 
 #[inline]
 pub fn conditional_and_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = logical_or_expression(parser)?;
-    if parser.next_if(|t| t.kind == TokenKind::AndAnd).is_none() {
-        return Some(left)
+    let mut left = logical_or_expression(parser)?;
+    while parser.next_if(|t| t.kind == TokenKind::AndAnd).is_some() {
+        let right = logical_or_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Conditional(Box::new(left), ConditionalOperator::And, Box::new(right));
+        left = Expression { kind, span }
     }
 
-    let right = logical_or_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Conditional(Box::new(left), ConditionalOperator::And, Box::new(right));
-
-    Some(Expression { kind, span })
+    Some(left)
 }
 
 #[inline]
 pub fn logical_or_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = logical_and_expression(parser)?;
-    if parser.next_if(|t| t.kind == TokenKind::Or).is_none() {
-        return Some(left)
+    let mut left = logical_xor_expression(parser)?;
+    while parser.next_if(|t| t.kind == TokenKind::Or).is_some() {
+        let right = logical_xor_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::Or, Box::new(right));
+        left = Expression { kind, span }
     }
 
-    let right = logical_and_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::Or, Box::new(right));
-
-    Some(Expression { kind, span })
+    Some(left)
 
 }
 
 #[inline]
 pub fn logical_xor_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = logical_and_expression(parser)?;
-    if parser.next_if(|t| t.kind == TokenKind::Caret).is_none() {
-        return Some(left)
+    let mut left = logical_and_expression(parser)?;
+    while parser.next_if(|t| t.kind == TokenKind::Caret).is_some() {
+        let right = logical_and_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::Xor, Box::new(right));
+        left = Expression { kind, span }
     }
 
-    let right = logical_and_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::Xor, Box::new(right));
-
-    Some(Expression { kind, span })
+    Some(left)
 }
 
 #[inline]
 pub fn logical_and_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = equality_expression(parser)?;
-    if parser.next_if(|t| t.kind == TokenKind::And).is_none() {
-        return Some(left)
+    let mut left = equality_expression(parser)?;
+    while parser.next_if(|t| t.kind == TokenKind::And).is_some() {
+        let right = equality_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::And, Box::new(right));
+        left = Expression { kind, span }
     }
 
-    let right = equality_expression(parser)?;
-
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::And, Box::new(right));
-
-    Some(Expression { kind, span })
+    Some(left)
 }
 
 #[inline]
 pub fn equality_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = comparision_expression(parser)?;
-    let Some(op) = parser.next_if_map(|t| {
+    let mut left = comparision_expression(parser)?;
+    while let Some(op) = equality_op(parser){
+        let right = comparision_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Equality(Box::new(left), op, Box::new(right));
+        left = Expression { kind, span }
+    };
+
+    Some(left)
+}
+
+fn equality_op(parser: &mut Parser<'_>) -> Option<EqualityOperator> {
+    parser.next_if_map(|t| {
         match t {
             Some(Token { kind: TokenKind::EqualsEquals, .. }) =>
                 Ok(EqualityOperator::Equals),
@@ -155,15 +164,7 @@ pub fn equality_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>
                 Ok(EqualityOperator::NotEquals),
             token => Err(token),
         }
-    }) else {
-        return Some(left)
-    };
-
-    let right = comparision_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Equality(Box::new(left), op, Box::new(right));
-
-    Some(Expression { kind, span })
+    })
 }
 
 #[inline]
@@ -194,8 +195,20 @@ pub fn comparision_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<
 
 #[inline]
 pub fn shift_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = additive_expression(parser)?;
-    let Some(op) = parser.next_if_map(|t| {
+    let mut left = additive_expression(parser)?;
+    while let Some(op) = shift_op(parser) {
+        let right = additive_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
+        left = Expression { kind, span }
+    }
+
+    Some(left)
+}
+
+#[inline]
+fn shift_op(parser: &mut Parser<'_>) -> Option<BinaryOperator> {
+    parser.next_if_map(|t| {
         match t {
             Some(Token { kind: TokenKind::BitwiseLeft, .. }) =>
                 Ok(BinaryOperator::BitLeft),
@@ -203,21 +216,25 @@ pub fn shift_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
                 Ok(BinaryOperator::BitRight),
             token => Err(token),
         }
-    }) else {
-        return Some(left)
-    };
-
-    let right = additive_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
-
-    Some(Expression { kind, span })
+    })
 }
 
 #[inline]
 pub fn additive_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = multiplicative_expression(parser)?;
-    let Some(op) = parser.next_if_map(|t| {
+    let mut left = multiplicative_expression(parser)?;
+    while let Some(op) = additive_op(parser) {
+        let right = multiplicative_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
+        left = Expression { kind, span }
+    }
+
+    Some(left)
+}
+
+#[inline]
+fn additive_op(parser: &mut Parser<'_>) -> Option<BinaryOperator> {
+    parser.next_if_map(|t| {
         match t {
             Some(Token { kind: TokenKind::Plus, .. }) =>
                 Ok(BinaryOperator::Addition),
@@ -225,21 +242,25 @@ pub fn additive_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>
                 Ok(BinaryOperator::Substraction),
             token => Err(token),
         }
-    }) else {
-        return Some(left)
-    };
-
-    let right = multiplicative_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
-
-    Some(Expression { kind, span })
+    })
 }
 
 #[inline]
 pub fn multiplicative_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = unary_expression(parser)?;
-    let Some(op) = parser.next_if_map(|t| {
+    let mut left = unary_expression(parser)?;
+    while let Some(op) = multiplicative_op(parser) {
+        let right = unary_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
+        left = Expression { kind, span }
+    }
+
+    Some(left)
+}
+
+#[inline]
+fn multiplicative_op(parser: &mut Parser<'_>) -> Option<BinaryOperator> {
+    parser.next_if_map(|t| {
         match t {
             Some(Token { kind: TokenKind::Star, .. }) =>
                 Ok(BinaryOperator::Multiplication),
@@ -249,15 +270,7 @@ pub fn multiplicative_expression<'t>(parser: &mut Parser<'t>) -> Option<Expressi
                 Ok(BinaryOperator::Modulo),
             token => Err(token),
         }
-    }) else {
-        return Some(left)
-    };
-
-    let right = unary_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
-
-    Some(Expression { kind, span })
+    })
 }
 
 #[inline]
@@ -280,11 +293,11 @@ pub fn unary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
         }
     });
 
-    let expr = postfix_expression(parser)?;
     let Some((op, start_span)) = unary_matcher else {
-        return Some(expr);
+        return postfix_expression(parser);
     };
 
+    let expr = unary_expression(parser)?;
     let span = Span::new_spanned(start_span, expr.span);
     let kind = ExpressionKind::Unary(op, Box::new(expr));
 
@@ -294,16 +307,16 @@ pub fn unary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 #[inline]
 pub fn postfix_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let primary_exp = primary_expression(parser);
-    match parser.peek().map(|t| t.kind)? {
-        TokenKind::ParanthesisLeft =>
+    match parser.peek().map(|t| t.kind) {
+        Some(TokenKind::ParanthesisLeft) =>
             call_expression(parser, primary_exp),
-        TokenKind::SquareBracketLeft =>
+        Some(TokenKind::SquareBracketLeft) =>
             index_expression(parser, primary_exp),
-        TokenKind::Dot =>
+        Some(TokenKind::Dot) =>
             reference_expression(parser, primary_exp),
-        TokenKind::PlusPlus | TokenKind::MinusMinus =>
+        Some(TokenKind::PlusPlus | TokenKind::MinusMinus) =>
             post_op_expression(parser, primary_exp),
-        TokenKind::QuestionMark =>
+        Some(TokenKind::QuestionMark) =>
             short_curcuit_expression(parser, primary_exp),
         _ => primary_exp,
     }
@@ -544,9 +557,9 @@ pub fn char_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
         match t {
             Some(Token { kind: TokenKind::CharacterLiteral { escape_type, terminated }, span }) =>
                 Ok((escape_type, terminated, span)),
-            Some(Token { kind, span }) => 
+            Some(Token { kind, span }) =>
                 todo!(),
-            None => 
+            None =>
                 todo!(),
         }
     })?;
@@ -694,7 +707,7 @@ mod tests {
     extern crate std;
 
     use super::*;
-    
+
     #[test]
     fn does_err_on_complicated_shit() -> Result<(), ()> {
         let mut parser = Parser::from("100 - 20 - 10 * 2 / 4 + (35 ^ 15 & 6 | 8) << 1 >> (4 - 2)");
