@@ -17,6 +17,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Setup rust
+      uses: dtolnay/rust-toolchain@stable
     - name: Build
       run: cargo build --workspace --verbose
     - name: Run tests
