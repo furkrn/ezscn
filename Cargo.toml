@@ -2,6 +2,10 @@
 name = "ezscn"
 version = "0.0.1"
 edition = "2024"
+authors = ["furkrn"]
+license-file = "LICENSE.md"
+readme = "README.md"
+repository = "https://github.com/furkrn/ezscn"
 
 [workspace]
 resolver = "3"

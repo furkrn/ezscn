@@ -333,6 +333,7 @@ impl<'a> TokenStreamInner<'a> {
             "import" => TokenKind::ImportKeyword,
             "continue" => TokenKind::ContinueKeyword,
             "break" => TokenKind::BreakKeyword,
+            "is" => TokenKind::IsKeyword,
             _ => return Err(str),
         };
 
@@ -648,7 +649,7 @@ mod tests {
     #[test]
     pub fn keywords() {
         let str = r#"enum struct config const flags self func match
-            let if else while for in sig new return feature import continue break"#;
+            let if else while for in sig new return feature import continue break is"#;
         let mut stream = TokenStream::from(str);
 
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::EnumKeyword, span: Span::new(0, 4) }));
@@ -672,6 +673,7 @@ mod tests {
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::ImportKeyword, span: Span::new(107, 113)}));
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::ContinueKeyword, span: Span::new(114, 122)}));
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::BreakKeyword, span: Span::new(123, 128)}));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::IsKeyword, span: Span::new(129, 131)}));
         assert_eq!(stream.next(), None);
     }
 

@@ -169,7 +169,7 @@ fn equality_op(parser: &mut Parser<'_>) -> Option<EqualityOperator> {
 
 #[inline]
 pub fn comparision_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = shift_expression(parser)?;
+    let left = instanceof_expression(parser)?;
     let Some(op) = parser.next_if_map(|t| {
         match t {
             Some(Token { kind: TokenKind::GreaterThan, .. }) =>
@@ -186,9 +186,34 @@ pub fn comparision_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<
         return Some(left)
     };
 
-    let right = shift_expression(parser)?;
+    let right = instanceof_expression(parser)?;
     let span = Span::new_spanned(left.span, right.span);
     let kind = ExpressionKind::Comparision(Box::new(left), op, Box::new(right));
+
+    Some(Expression { kind, span })
+}
+
+#[inline]
+pub fn instanceof_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
+    let left = shift_expression(parser)?;
+    if parser.next_if_kind(TokenKind::IsKeyword).is_none() {
+        return Some(left)
+    }
+
+    let type_path = parser.advance_until_path()?;
+    let mut end_span = type_path.span;
+    let identifier = parser.next_if_map(|t| {
+        match t {
+            Some(Token { kind: TokenKind::Identifier, span }) => {
+                end_span = span;
+                Ok(&parser.input[span])
+            },
+            _ => Err(t)
+        }
+    });
+
+    let span = Span::new_spanned(left.span, end_span);
+    let kind = ExpressionKind::InstanceOf(Box::new(left), type_path, identifier);
 
     Some(Expression { kind, span })
 }
@@ -704,17 +729,5 @@ fn match_arm<'t>(parser: &mut Parser<'t>) -> Option<MatchArm<'t>> {
 
 #[cfg(test)]
 mod tests {
-    extern crate std;
-
     use super::*;
-
-    #[test]
-    fn does_err_on_complicated_shit() -> Result<(), ()> {
-        let mut parser = Parser::from("100 - 20 - 10 * 2 / 4 + (35 ^ 15 & 6 | 8) << 1 >> (4 - 2)");
-        let exp = expression(&mut parser).ok_or(());
-
-        std::println!("{exp:?}");
-
-        Ok(())
-    }
 }

@@ -16,7 +16,6 @@ pub enum StatementKind<'e> {
     Return(Expression<'e>),
     Let(ThinVec<IdentifierOrUnderscore<'e>>, Option<Expression<'e>>),
     If(IfStatement<'e>),
-    Match(MatchStatement<'e>),
     ForLoop(ForLoopStatement<'e>),
     WhileLoop(WhileLoopStatement<'e>),
     Break,
@@ -38,19 +37,6 @@ pub struct IfStatement<'e> {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct IfArm<'e> {
-    pub clause: Expression<'e>,
-    pub block: Block<'e>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct MatchStatement<'e> {
-    pub matcher: Expression<'e>,
-    pub arms: ThinVec<MatchArm<'e>>,
-    pub default_arm: Option<Block<'e>>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct MatchArm<'e> {
     pub clause: Expression<'e>,
     pub block: Block<'e>,
 }

@@ -213,6 +213,7 @@ pub enum TokenKind {
     ImportKeyword,
     ContinueKeyword,
     BreakKeyword,
+    IsKeyword,
 
     StringLiteral {
         options: StringOptions,
@@ -313,7 +314,8 @@ impl Display for TokenKind {
             Self::FeatureKeyword => "feature",
             Self::ImportKeyword => "import",
             Self::ContinueKeyword => "continue",
-            Self::BreakKeyword => "continue",
+            Self::BreakKeyword => "break",
+            Self::IsKeyword => "is",
             Self::StringLiteral { .. } => "<STRING>",
             Self::NumberLiteral { .. } => "<NUMBER>",
             Self::CharacterLiteral { .. } => "<CHARACTER>",
