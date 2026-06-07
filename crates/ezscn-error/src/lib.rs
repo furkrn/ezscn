@@ -29,7 +29,8 @@ impl ParseError {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ParseErrorKind {
-    UnexpectedToken(TokenKind, TokenKind),
+    InvalidToken(TokenKind, TokenKind),
+    UnexpectedToken(TokenKind),
     ExpectedToken(TokenKind),
     InvalidReturnTypeToken(TokenKind),
     ExpectedReturnType,

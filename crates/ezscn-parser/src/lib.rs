@@ -395,7 +395,7 @@ impl<'t> Parser<'t> {
             match t {
                 Some(token) if token.kind == expected => Ok(token),
                 Some(token) => {
-                    let kind = ParseErrorKind::UnexpectedToken(expected, token.kind);
+                    let kind = ParseErrorKind::InvalidToken(expected, token.kind);
                     let span = token.span;
                     Err(ParseError { kind, span })
                 },
@@ -414,7 +414,7 @@ impl<'t> Parser<'t> {
             match t {
                 Some(token) if token.kind == expected => Ok(token),
                 Some(token) => {
-                    let kind = ParseErrorKind::UnexpectedToken(expected, token.kind);
+                    let kind = ParseErrorKind::InvalidToken(expected, token.kind);
                     let span = token.span;
                     Err(ParseError { kind, span })
                 },

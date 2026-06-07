@@ -352,43 +352,60 @@ pub fn postfix_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
 
 #[inline]
 pub fn call_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
-    let left = left.or_else(|| primary_expression(parser))?;
-    parser.advance_until_kind(TokenKind::ParanthesisLeft)?;
-    let args = parser.comma_seperated_map(TokenKind::ParanthesisRight, expression)?;
-    let pr_token = parser.advance_until_kind(TokenKind::ParanthesisRight)?;
-    let span = Span::new_spanned(left.span, pr_token.span);
-    let kind = ExpressionKind::Call(Box::new(left), args);
+    let mut left = left.or_else(|| primary_expression(parser))?;
+    while parser.next_if_kind(TokenKind::ParanthesisLeft).is_some() {
+        let args = parser.comma_seperated_map(TokenKind::ParanthesisRight, expression)?;
+        let pr_token = parser.advance_until_kind(TokenKind::ParanthesisRight)?;
+        let span = Span::new_spanned(left.span, pr_token.span);
+        let kind = ExpressionKind::Call(Box::new(left), args);
+        left = Expression { kind, span }
+    }
 
-    Some(Expression { kind, span })
+    Some(left)
 }
 
 #[inline]
 pub fn index_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
-    let left = left.or_else(|| primary_expression(parser))?;
-    parser.advance_until_kind(TokenKind::SquareBracketLeft)?;
-    let expr = expression(parser)?;
-    let sbr_token = parser.advance_until_kind(TokenKind::SquareBracketRight)?;
-    let span = Span::new_spanned(left.span, sbr_token.span);
-    let kind = ExpressionKind::Index(Box::new(left), Box::new(expr));
+    let mut left = left.or_else(|| primary_expression(parser))?;
+    while parser.next_if_kind(TokenKind::SquareBracketLeft).is_some() {
+        let expr = expression(parser)?;
+        let sbr_token = parser.advance_until_kind(TokenKind::SquareBracketRight)?;
+        let span = Span::new_spanned(left.span, sbr_token.span);
+        let kind = ExpressionKind::Index(Box::new(left), Box::new(expr));
+        left = Expression { kind, span }
+    }
 
-    Some(Expression { kind, span })
+    Some(left)
 }
 
 #[inline]
 pub fn reference_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
-    let left = left.or_else(|| primary_expression(parser))?;
-    parser.advance_until_kind(TokenKind::Dot)?;
-    let right = postfix_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
-    let kind = ExpressionKind::Reference(Box::new(left), Box::new(right));
+    let mut left = left.or_else(|| primary_expression(parser))?;
+    while parser.next_if_kind(TokenKind::Dot).is_some() {
+        let right = postfix_expression(parser)?;
+        let span = Span::new_spanned(left.span, right.span);
+        let kind = ExpressionKind::Reference(Box::new(left), Box::new(right));
+        left = Expression { kind, span }
+    }
 
-    Some(Expression { kind, span })
+    Some(left)
 }
 
 #[inline]
 pub fn post_op_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
-    let left = left.or_else(|| primary_expression(parser))?;
-    let (op, end_span) = parser.next_if_map(|t| {
+    let mut left = left.or_else(|| primary_expression(parser))?;
+    while let Some((op, end_span)) = post_op_span(parser) {
+        let span = Span::new_spanned(left.span, end_span);
+        let kind = ExpressionKind::PostOp(Box::new(left), op);
+        left = Expression { kind, span }
+    }
+
+    Some(left)
+}
+
+#[inline]
+fn post_op_span(parser: &mut Parser<'_>) -> Option<(PostOperator, Span)> {
+    parser.next_if_map(|t| {
         match t {
             Some(Token { kind: TokenKind::PlusPlus, span }) =>
                 Ok((PostOperator::Increment, span)),
@@ -396,22 +413,19 @@ pub fn post_op_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'
                 Ok((PostOperator::Decrement, span)),
             token => Err(token),
         }
-    })?;
-
-    let span = Span::new_spanned(left.span, end_span);
-    let kind = ExpressionKind::PostOp(Box::new(left), op);
-
-    Some(Expression { kind, span })
+    })
 }
 
 #[inline]
 pub fn short_curcuit_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
-    let left = left.or_else(|| primary_expression(parser))?;
-    let mark = parser.advance_until_kind(TokenKind::QuestionMark)?;
-    let span = Span::new_spanned(left.span, mark.span);
-    let kind = ExpressionKind::ShortCurcuit(Box::new(left));
+    let mut left = left.or_else(|| primary_expression(parser))?;
+    while let Some(mark) = parser.next_if_kind(TokenKind::QuestionMark) {
+        let span = Span::new_spanned(left.span, mark.span);
+        let kind = ExpressionKind::ShortCurcuit(Box::new(left));
+        left = Expression { kind, span }
+    }
 
-    Some(Expression { kind, span })
+    Some(left)
 }
 
 #[inline]
@@ -439,11 +453,11 @@ pub fn primary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
             null_literal(parser),
         Some(Token { kind: TokenKind::MatchKeyword, .. }) =>
             match_expression(parser),
-        Some(Token { kind, span }) => {
-            None
-        },
         _ => {
-            None
+            let token = parser.next()?;
+            let error = ParseError::new(ParseErrorKind::UnexpectedToken(token.kind), token.span);
+            parser.error(error);
+            primary_expression(parser)
         }
     }
 }
@@ -457,7 +471,7 @@ pub fn access_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> 
             Some(Token { kind: TokenKind::SelfKeyword, span }) =>
                 Ok((AccessExpression::SelfAccess, span)),
             Some(Token { kind: found, span }) => {
-                let kind = ParseErrorKind::UnexpectedToken(TokenKind::Identifier, found);
+                let kind = ParseErrorKind::InvalidToken(TokenKind::Identifier, found);
                 Err(ParseError::new(kind, span))
             },
             None =>
@@ -537,15 +551,10 @@ pub fn literal_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
         Some(Token { kind: TokenKind::NullKeyword, .. }) =>
             null_literal(parser),
         _ => {
-            let token = parser.next();
-            let span = token.map(|t| t.span)
-                .unwrap_or_else(|| Span::empty_from_start(parser.input.len()));
-            
-            let kind = token.map(|t| t.kind);
-            let error = ParseError::new(ParseErrorKind::LiteralsExpected(kind), span);
+            let token = parser.next()?;
+            let error = ParseError::new(ParseErrorKind::LiteralsExpected(Some(token.kind)), token.span);
             parser.error(error);
-            
-            None
+            literal_expression(parser)
         }
     }
 }

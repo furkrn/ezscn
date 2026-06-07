@@ -101,7 +101,7 @@ fn let_ident<'t>(parser: &mut Parser<'t>) -> Option<IdentifierOrUnderscore<'t>> 
             Some(Token { kind: TokenKind::Underscore, .. }) =>
                 Ok(IdentifierOrUnderscore::Underscore),
             Some(Token { kind: found, span }) =>
-                Err(ParseError::new(ParseErrorKind::UnexpectedToken(TokenKind::Identifier, found), span)),
+                Err(ParseError::new(ParseErrorKind::InvalidToken(TokenKind::Identifier, found), span)),
             None =>
                 Err(ParseError::new(ParseErrorKind::ExpectedToken(TokenKind::Identifier), Span::default()))
         }
