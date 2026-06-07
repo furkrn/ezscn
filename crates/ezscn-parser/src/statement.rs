@@ -47,7 +47,7 @@ pub fn expression_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>
 
 #[inline]
 pub fn return_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
-    let return_kw = parser.advance_until_kind(TokenKind::ReturnKeyword)?;
+    let return_kw = parser.next_if_kind_errored(TokenKind::ReturnKeyword)?;
     let exp = parser.expression()?;
 
     let span = Span::new_spanned(return_kw.span, exp.span);
@@ -58,7 +58,7 @@ pub fn return_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
 
 #[inline]
 pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
-    let let_kw = parser.advance_until_kind(TokenKind::LetKeyword)?;
+    let let_kw = parser.next_if_kind_errored(TokenKind::LetKeyword)?;
     let mut identifiers = thin_vec![];
     if parser.peek().is_some_and(|t| t.kind == TokenKind::ParanthesisLeft) {
         parser.advance_until_kind(TokenKind::ParanthesisLeft)?;
@@ -110,7 +110,7 @@ fn let_ident<'t>(parser: &mut Parser<'t>) -> Option<IdentifierOrUnderscore<'t>> 
 
 #[inline]
 pub fn if_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
-    let if_kw = parser.advance_until_kind(TokenKind::IfKeyword)?;
+    let if_kw = parser.next_if_kind_errored(TokenKind::IfKeyword)?;
     let clause = parser.expression()?;
     let if_arm = IfArm { clause, block: block(parser)? };
     let mut else_if_arms = thin_vec![];
@@ -143,7 +143,7 @@ pub fn if_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
 
 #[inline]
 pub fn for_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
-    let for_kw = parser.advance_until_kind(TokenKind::ForKeyword)?;
+    let for_kw = parser.next_if_kind_errored(TokenKind::ForKeyword)?;
     let identifier = parser.advance_until_identifier()?;
     parser.advance_until_kind(TokenKind::InKeyword)?;
     let expression = parser.expression()?;
@@ -158,7 +158,7 @@ pub fn for_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
 
 #[inline]
 pub fn while_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
-    let while_kw = parser.advance_until_kind(TokenKind::WhileKeyword)?;
+    let while_kw = parser.next_if_kind_errored(TokenKind::WhileKeyword)?;
     let expression = parser.expression()?;
     let block = block(parser)?;
 
@@ -171,7 +171,7 @@ pub fn while_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
 
 #[inline]
 pub fn break_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
-    let break_kw = parser.advance_until_kind(TokenKind::BreakKeyword)?;
+    let break_kw = parser.next_if_kind_errored(TokenKind::BreakKeyword)?;
     let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
 
     let span = Span::new_spanned(break_kw.span, semicolon.span);
@@ -182,7 +182,7 @@ pub fn break_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
 
 #[inline]
 pub fn continue_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
-    let continue_kw = parser.advance_until_kind(TokenKind::ContinueKeyword)?;
+    let continue_kw = parser.next_if_kind_errored(TokenKind::ContinueKeyword)?;
     let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
 
     let span = Span::new_spanned(continue_kw.span, semicolon.span);

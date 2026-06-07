@@ -33,7 +33,9 @@ pub enum ParseErrorKind {
     ExpectedToken(TokenKind),
     InvalidReturnTypeToken(TokenKind),
     ExpectedReturnType,
-    LiteralExpected(Option<TokenKind>),
+    ExpectedIntegerFoundFloating,
+    LiteralExpected(LiteralKind, Option<TokenKind>),
+    LiteralsExpected(Option<TokenKind>),
     EmptyChar,
     EmptyEscapeSequence,
     UnknownEscapeSequence,
@@ -43,7 +45,7 @@ pub enum ParseErrorKind {
     InvalidTokenForNewExpr(TokenKind),
     ExpectedIdentifierForNewExpr,
     IntError(IntErrorKind),
-    UnexpectedLiteralKind,
+    UnexpectedLiteralKind(LiteralKind),
     InvalidStructToken(TokenKind),
     UnterminatedStruct,
     FloatError,
@@ -55,6 +57,7 @@ pub enum LiteralKind {
     Char,
     Integer,
     Float,
+    Boolean,
 }
 
 impl Display for ParseErrorKind {

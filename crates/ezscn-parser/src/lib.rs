@@ -363,17 +363,49 @@ impl<'t> Parser<'t> {
         self.token_stream.reached_eof()
     }
 
-    pub fn next_if_map<T>(&mut self, f: impl FnOnce(Option<Token>) -> Result<T, Option<Token>>) -> Option<T> {
+    pub(crate) fn next_if_map<T>(&mut self, f: impl FnOnce(Option<Token>) -> Result<T, Option<Token>>) -> Option<T> {
         self.token_stream.next_if_map(f)
     }
 
-    pub fn next_if(&mut self, f: impl FnOnce(&Token) -> bool) -> Option<Token> {
+    pub(crate) fn next_if_map_errored<T>(&mut self, f: impl FnOnce(Option<Token>) -> Result<T, ParseError>) -> Option<T> {
+        let errors = &mut self.errors;
+        self.token_stream.next_if_map(|token| {
+            match (f)(token) {
+                Ok(t) => Ok(t),
+                Err(e) => {
+                    errors.push(e);
+                    Err(token)
+                },
+            }
+        })
+    }
+
+    pub(crate) fn next_if(&mut self, f: impl FnOnce(&Token) -> bool) -> Option<Token> {
         self.token_stream.next_if(f)
     }
 
     #[inline]
-    pub fn next_if_kind(&mut self, kind: TokenKind) -> Option<Token> {
+    pub(crate) fn next_if_kind(&mut self, kind: TokenKind) -> Option<Token> {
         self.next_if(|t| t.kind == kind)
+    }
+
+    #[inline]
+    pub(crate) fn next_if_kind_errored(&mut self, expected: TokenKind) -> Option<Token> {
+        self.next_if_map_errored(|t| {
+            match t {
+                Some(token) if token.kind == expected => Ok(token),
+                Some(token) => {
+                    let kind = ParseErrorKind::UnexpectedToken(expected, token.kind);
+                    let span = token.span;
+                    Err(ParseError { kind, span })
+                },
+                None => {
+                    let kind = ParseErrorKind::ExpectedToken(expected);
+                    let span = Span::empty_from_start(self.input.len());
+                    Err(ParseError { kind, span })
+                }
+            }
+        })
     }
 
     #[inline]
