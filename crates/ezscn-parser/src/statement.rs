@@ -48,9 +48,14 @@ pub fn expression_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>
 #[inline]
 pub fn return_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     let return_kw = parser.next_if_kind_errored(TokenKind::ReturnKeyword)?;
-    let exp = parser.expression()?;
+    let exp = if !parser.is_next(TokenKind::Semicolon) {
+        Some(parser.expression()?)
+    } else {
+        None 
+    };
 
-    let span = Span::new_spanned(return_kw.span, exp.span);
+    let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
+    let span = Span::new_spanned(return_kw.span, semicolon.span);
     let kind = StatementKind::Return(exp);
 
     Some(Statement { kind, span })

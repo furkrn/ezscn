@@ -13,7 +13,7 @@ pub struct Statement<'e> {
 #[derive(Debug, Eq, PartialEq)]
 pub enum StatementKind<'e> {
     Expression(Expression<'e>),
-    Return(Expression<'e>),
+    Return(Option<Expression<'e>>),
     Let(ThinVec<IdentifierOrUnderscore<'e>>, Option<Expression<'e>>),
     If(IfStatement<'e>),
     ForLoop(ForLoopStatement<'e>),
