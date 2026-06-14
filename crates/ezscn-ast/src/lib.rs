@@ -97,7 +97,7 @@ pub struct ConstItem<'i> {
 pub struct FuncItem<'i> {
     pub identifier: Identifier<'i>,
     pub params: ThinVec<FuncParam<'i>>,
-    pub block: Block<'i>,
+    pub block: Option<Block<'i>>,
     pub return_type: Option<ReturnTypes<'i>>,
 }
 

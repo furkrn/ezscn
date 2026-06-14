@@ -208,14 +208,23 @@ impl<'t> Parser<'t> {
         let identifier = self.advance_until_identifier()?;
         self.advance_until_kind(TokenKind::ParanthesisLeft)?;
         let params = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::func_param)?;
+        self.advance_until_kind(TokenKind::ParanthesisRight)?;
         let return_type = if self.next_if_kind(TokenKind::Colon).is_some() {
             Some(self.return_type()?)
         } else {
             None
         };
 
-        let block = statement::block(self)?;
-        let span = Span::new_spanned(func_kw.span, block.span);
+        let (block, end_span) = if !self.is_next(TokenKind::Semicolon) {
+            let block = statement::block(self)?;
+            let span = block.span;
+            
+            (Some(block), span)
+        } else {
+            (None, self.next()?.span)
+        };
+        
+        let span = Span::new_spanned(func_kw.span, end_span);
         let kind = ItemKind::Func(FuncItem { identifier, params, block, return_type });
 
         Some(Item { kind, span })
