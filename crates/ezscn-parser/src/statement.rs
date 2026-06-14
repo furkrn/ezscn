@@ -1,6 +1,5 @@
 use ezscn_ast::*;
 use ezscn_ast::statement::*;
-use ezscn_error::{ParseError, ParseErrorKind};
 use ezscn_tokens::{Span, SpanImpl, Spanned, Token, TokenKind};
 use thin_vec::thin_vec;
 
@@ -51,7 +50,7 @@ pub fn return_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     let exp = if !parser.is_next(TokenKind::Semicolon) {
         Some(parser.expression()?)
     } else {
-        None 
+        None
     };
 
     let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
@@ -72,14 +71,14 @@ pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
                 break
             }
 
-            identifiers.push(let_ident(parser)?);
+            identifiers.push(parser.advance_until_identifier_or_underscore()?);
             if !parser.token_stream.is_next(TokenKind::ParanthesisRight) {
                 parser.advance_until_kind(TokenKind::Comma)?;
             }
         }
         parser.advance_until_kind(TokenKind::ParanthesisRight)?;
     } else {
-        identifiers.push(let_ident(parser)?)
+        identifiers.push(parser.advance_until_identifier_or_underscore()?)
     }
 
     let expression = if parser.token_stream.is_next(TokenKind::Equals) {
@@ -95,22 +94,6 @@ pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     let kind = StatementKind::Let(identifiers, expression);
 
     Some(Statement { kind, span })
-}
-
-#[inline]
-fn let_ident<'t>(parser: &mut Parser<'t>) -> Option<IdentifierOrUnderscore<'t>> {
-    parser.advance_map(|token| {
-        match token {
-            Some(Token { kind: TokenKind::Identifier, span }) =>
-                Ok(IdentifierOrUnderscore::Identifier(&parser.input[span])),
-            Some(Token { kind: TokenKind::Underscore, .. }) =>
-                Ok(IdentifierOrUnderscore::Underscore),
-            Some(Token { kind: found, span }) =>
-                Err(ParseError::new(ParseErrorKind::InvalidToken(TokenKind::Identifier, found), span)),
-            None =>
-                Err(ParseError::new(ParseErrorKind::ExpectedToken(TokenKind::Identifier), Span::default()))
-        }
-    })
 }
 
 #[inline]
@@ -149,7 +132,7 @@ pub fn if_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
 #[inline]
 pub fn for_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
     let for_kw = parser.next_if_kind_errored(TokenKind::ForKeyword)?;
-    let identifier = parser.advance_until_identifier()?;
+    let identifier = parser.advance_until_identifier_or_underscore()?;
     parser.advance_until_kind(TokenKind::InKeyword)?;
     let expression = parser.expression()?;
     let block = block(parser)?;

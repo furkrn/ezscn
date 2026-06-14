@@ -49,7 +49,7 @@ pub enum WaitStatementKind<'e> {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ForLoopStatement<'e> {
-    pub identifier: Identifier<'e>,
+    pub identifier: IdentifierOrUnderscore<'e>,
     pub expression: Expression<'e>,
     pub block: Block<'e>,
 }

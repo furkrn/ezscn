@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use ezscn_ast::*;
 use ezscn_ast::expression::Expression;
-use ezscn_ast::statement::Statement;
+use ezscn_ast::statement::IdentifierOrUnderscore;
 use ezscn_error::{ParseError, ParseErrorKind};
 use ezscn_lexer::TokenStream;
 use ezscn_tokens::{Span, SpanImpl, Spanned, Token, TokenKind};
@@ -314,11 +314,32 @@ impl<'t> Parser<'t> {
     }
 
     #[inline]
+    pub fn advance_until_identifier_or_underscore(&mut self) -> Option<IdentifierOrUnderscore<'t>> {
+        self.advance_until_identifier_or_underscore_spanned().map(|t| t.data)
+    }
+
+    #[inline]
     pub fn advance_until_identifier_spanned(&mut self) -> Option<Spanned<&'t str>> {
         let token = self.advance_until_kind(TokenKind::Identifier)?;
         let span = token.span;
 
         Some(Spanned::new(&self.input[token.span], span))
+    }
+
+    #[inline]
+    pub fn advance_until_identifier_or_underscore_spanned(&mut self) -> Option<Spanned<IdentifierOrUnderscore<'t>>> {
+        self.advance_map(|t| {
+            match t {
+                Some(Token { kind: TokenKind::Identifier, span }) => Ok(Spanned::new(IdentifierOrUnderscore::Identifier(&self.input[span]), span)),
+                Some(Token { kind: TokenKind::Underscore, span }) => Ok(Spanned::new(IdentifierOrUnderscore::Underscore, span)),
+                Some(Token { kind, span }) => Err(ParseError::new(ParseErrorKind::InvalidToken(TokenKind::Identifier, kind), span)),
+                None => {
+                    let kind = ParseErrorKind::ExpectedToken(TokenKind::Identifier);
+                    let span = Span::empty_from_start(self.input.len());
+                    Err(ParseError { kind, span })
+                }
+            }
+        })
     }
 
     pub(crate) fn comma_seperated_map<T>(&mut self, end_kind: TokenKind, f: impl Fn(&mut Self) -> Option<T>) -> Option<ThinVec<T>> {
