@@ -90,24 +90,14 @@ impl<'t> Parser<'t> {
 
     #[inline]
     pub fn struct_item(&mut self) -> Option<Item<'t>> {
-        enum MemberType {
-            Field,
-            Tuple,
-            Zero,
-        }
-
         let struct_kw = self.advance_until_kind(TokenKind::StructKeyword)?;
         let identifier_token = self.advance_until_identifier_spanned()?;
-        let member_type = self.advance_map(|token| {
+        let token = self.advance_map(|token| {
             match token {
-                Some(Token { kind: TokenKind::ParanthesisLeft, .. }) =>
-                    Ok(MemberType::Tuple),
-                Some(Token { kind: TokenKind::CurlyBracketLeft, .. }) =>
-                    Ok(MemberType::Field),
-                Some(Token { kind: TokenKind::Semicolon, .. }) =>
-                    Ok(MemberType::Zero),
-                Some(Token { kind, span }) =>
-                    Err(ParseError::new(ParseErrorKind::InvalidStructToken(kind), span)),
+                Some(token) if matches!(token.kind, TokenKind::Semicolon | TokenKind::ParanthesisLeft | TokenKind::CurlyBracketLeft) =>
+                    Ok(token),
+                Some(token) =>
+                    Err(ParseError::new(ParseErrorKind::InvalidStructToken(token.kind), token.span)),
                 None => {
                     let span = Span::new_spanned(struct_kw.span, identifier_token.span);
                     Err(ParseError::new(ParseErrorKind::UnterminatedStruct, span))
@@ -116,20 +106,19 @@ impl<'t> Parser<'t> {
         })?;
 
         let identifier = identifier_token.data;
-        let (members, end_token) = match member_type {
-            MemberType::Tuple => {
+        let (members, end_token) = match token.kind {
+            TokenKind::ParanthesisLeft => {
                 let tuple_list = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::return_type)?;
-                let pr = self.advance_until_kind(TokenKind::ParanthesisRight)?;
-
-                (StructMemberDefinition::Tuple(tuple_list), pr)
+                self.advance_until_kind(TokenKind::ParanthesisRight)?;
+                    
+                (StructMemberDefinition::Tuple(tuple_list), self.advance_until_kind(TokenKind::Semicolon)?)
             },
-            MemberType::Field => {
+            TokenKind::CurlyBracketLeft => {
                 let tuple_list = self.comma_seperated_map(TokenKind::CurlyBracketRight, Self::struct_field)?;
-                let cbr = self.advance_until_kind(TokenKind::CurlyBracketRight)?;
 
-                (StructMemberDefinition::Field(tuple_list), cbr)
+                (StructMemberDefinition::Field(tuple_list), self.advance_until_kind(TokenKind::CurlyBracketRight)?)
             },
-            MemberType::Zero => (StructMemberDefinition::Zero, self.advance_until_kind(TokenKind::Semicolon)?),
+            _ => (StructMemberDefinition::Zero, token),
         };
 
         let span = Span::new_spanned(struct_kw.span, end_token.span);
