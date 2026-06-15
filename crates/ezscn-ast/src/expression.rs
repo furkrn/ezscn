@@ -35,7 +35,6 @@ pub enum ExpressionKind<'s> {
     Tuple(ThinVec<Expression<'s>>),
     Match(Box<Expression<'s>>, ThinVec<MatchArm<'s>>),
     ShortCurcuit(Box<Expression<'s>>),
-    Ternary(Box<Expression<'s>>, Box<Expression<'s>>, Box<Expression<'s>>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -65,8 +64,8 @@ pub enum UnaryOperator {
     Negative,
     Not,
     Plus,
-    Addition,
-    Substraction,
+    Increment,
+    Decrement,
     Complement,
 }
 

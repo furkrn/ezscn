@@ -19,9 +19,9 @@ pub fn expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 
 #[inline]
 pub fn assignment_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let mut left = ternary_expression(parser)?;
+    let mut left = conditional_or_expression(parser)?;
     while let Some(op) = assignment_op(parser) {
-        let right = ternary_expression(parser)?;
+        let right = conditional_or_expression(parser)?;
         let span = Span::new_spanned(left.span, right.span);
         let kind = ExpressionKind::Assignment(Box::new(left), op, Box::new(right));
         left = Expression { kind, span }
@@ -61,22 +61,6 @@ fn assignment_op(parser: &mut Parser<'_>) -> Option<AssignmentOperator> {
             token => Err(token),
         }
     })
-}
-
-#[inline]
-pub fn ternary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let matcher = conditional_or_expression(parser)?;
-    if parser.next_if(|t| t.kind == TokenKind::QuestionMark).is_none() {
-        return Some(matcher)
-    }
-
-    let on_match_hand = conditional_or_expression(parser)?;
-    parser.advance_until_kind(TokenKind::Colon)?;
-    let else_hand = conditional_or_expression(parser)?;
-    let span = Span::new_spanned(matcher.span, else_hand.span);
-    let kind = ExpressionKind::Ternary(Box::new(matcher), Box::new(on_match_hand), Box::new(else_hand));
-
-    Some(Expression { kind, span })
 }
 
 #[inline]
@@ -312,9 +296,9 @@ pub fn unary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
             Some(Token { kind: TokenKind::Minus, span }) =>
                 Ok((UnaryOperator::Negative, span)),
             Some(Token { kind: TokenKind::PlusPlus, span }) =>
-                Ok((UnaryOperator::Addition, span)),
+                Ok((UnaryOperator::Increment, span)),
             Some(Token { kind: TokenKind::MinusMinus, span }) =>
-                Ok((UnaryOperator::Substraction, span)),
+                Ok((UnaryOperator::Decrement, span)),
             Some(Token { kind: TokenKind::Tilde, span }) =>
                 Ok((UnaryOperator::Complement, span)),
             token => Err(token),
