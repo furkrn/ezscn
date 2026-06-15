@@ -334,19 +334,21 @@ pub fn unary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 
 #[inline]
 pub fn postfix_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let primary_exp = primary_expression(parser);
-    match parser.peek().map(|t| t.kind) {
-        Some(TokenKind::ParanthesisLeft) =>
-            call_expression(parser, primary_exp),
-        Some(TokenKind::SquareBracketLeft) =>
-            index_expression(parser, primary_exp),
-        Some(TokenKind::Dot) =>
-            reference_expression(parser, primary_exp),
-        Some(TokenKind::PlusPlus | TokenKind::MinusMinus) =>
-            post_op_expression(parser, primary_exp),
-        Some(TokenKind::QuestionMark) =>
-            short_curcuit_expression(parser, primary_exp),
-        _ => primary_exp,
+    let mut left = primary_expression(parser);
+    loop {
+        left = match parser.peek().map(|t| t.kind) {
+            Some(TokenKind::ParanthesisLeft) =>
+                call_expression(parser, left),
+            Some(TokenKind::SquareBracketLeft) =>
+                index_expression(parser, left),
+            Some(TokenKind::Dot) =>
+                reference_expression(parser, left),
+            Some(TokenKind::PlusPlus | TokenKind::MinusMinus) =>
+                post_op_expression(parser, left),
+            Some(TokenKind::QuestionMark) =>
+                short_curcuit_expression(parser, left),
+            _ => break left
+        };
     }
 }
 
