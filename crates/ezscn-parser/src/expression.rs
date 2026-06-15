@@ -488,10 +488,16 @@ pub fn access_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> 
 pub fn new_init_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let new_kw = parser.next_if_kind_errored(TokenKind::NewKeyword)?;
     let identifier = parser.advance_until_path()?;
-    parser.advance_until_kind(TokenKind::CurlyBracketLeft)?;
-    let inits = parser.comma_seperated_map(TokenKind::CurlyBracketRight, new_init_member)?;
-    let cbr = parser.advance_until_kind(TokenKind::CurlyBracketRight)?;
-    let span = Span::new_spanned(new_kw.span, cbr.span);
+    let (inits, end_span) = if parser.next_if_kind(TokenKind::CurlyBracketLeft).is_some() {
+        let inits = parser.comma_seperated_map(TokenKind::CurlyBracketRight, new_init_member)?;
+        let cbr = parser.advance_until_kind(TokenKind::CurlyBracketRight)?;
+
+        (inits, cbr.span)
+    } else {
+        (thin_vec![], identifier.span)
+    };
+
+    let span = Span::new_spanned(new_kw.span, end_span);
     let kind = ExpressionKind::New(identifier, inits);
 
     Some(Expression { kind, span })
