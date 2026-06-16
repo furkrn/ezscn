@@ -24,7 +24,6 @@ pub fn statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     match parser.peek()? {
         Token { kind: TokenKind::ReturnKeyword, .. } => return_statement(parser),
         Token { kind: TokenKind::LetKeyword, .. } => let_statement(parser),
-        Token { kind: TokenKind::IfKeyword, .. } => if_statement(parser),
         Token { kind: TokenKind::ForKeyword, .. } => for_statement(parser),
         Token { kind: TokenKind::WhileKeyword, .. } => while_statement(parser),
         Token { kind: TokenKind::BreakKeyword, .. } => break_statement(parser),
@@ -92,39 +91,6 @@ pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
 
     let span = Span::new_spanned(let_kw.span, semicolon.span);
     let kind = StatementKind::Let(identifiers, expression);
-
-    Some(Statement { kind, span })
-}
-
-#[inline]
-pub fn if_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
-    let if_kw = parser.next_if_kind_errored(TokenKind::IfKeyword)?;
-    let clause = parser.expression()?;
-    let if_arm = IfArm { clause, block: block(parser)? };
-    let mut else_if_arms = thin_vec![];
-    let mut else_arm = None;
-    while parser.next_if(|t| t.kind == TokenKind::ElseKeyword).is_some() {
-        let is_else_if = parser.next_if(|t| t.kind == TokenKind::IfKeyword)
-            .is_some();
-
-        if is_else_if {
-            let clause = parser.expression()?;
-            let block = block(parser)?;
-
-            else_if_arms.push(IfArm { clause, block })
-        } else {
-            else_arm = block(parser);
-        }
-    }
-
-    let end_span = else_arm.as_ref()
-        .map(|t| t.span)
-        .or_else(|| else_if_arms.last().map(|t| t.block.span))
-        .unwrap_or(if_arm.block.span);
-
-    let span = Span::new_spanned(if_kw.span, end_span);
-    let if_statement = IfStatement { if_arm, else_if_arms, else_arm };
-    let kind = StatementKind::If(if_statement);
 
     Some(Statement { kind, span })
 }

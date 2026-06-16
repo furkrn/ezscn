@@ -439,6 +439,8 @@ pub fn primary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
             null_literal(parser),
         Some(Token { kind: TokenKind::MatchKeyword, .. }) =>
             match_expression(parser),
+        Some(Token { kind: TokenKind::IfKeyword, .. }) => 
+            if_expression(parser),
         _ => {
             let token = parser.next()?;
             let error = ParseError::new(ParseErrorKind::UnexpectedToken(token.kind), token.span);
@@ -759,6 +761,38 @@ fn match_arm<'t>(parser: &mut Parser<'t>) -> Option<MatchArm<'t>> {
     };
     
     Some(MatchArm { expression, if_clause, block })
+}
+
+#[inline]
+pub fn if_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
+    let if_kw = parser.next_if_kind_errored(TokenKind::IfKeyword)?;
+    let clause = parser.expression()?;
+    let if_arm = IfArm { clause, block: block(parser)? };
+    let mut else_if_arms = thin_vec![];
+    let mut else_arm = None;
+    while parser.next_if(|t| t.kind == TokenKind::ElseKeyword).is_some() {
+        let is_else_if = parser.next_if(|t| t.kind == TokenKind::IfKeyword)
+            .is_some();
+
+        if is_else_if {
+            let clause = parser.expression()?;
+            let block = block(parser)?;
+
+            else_if_arms.push(IfArm { clause, block })
+        } else {
+            else_arm = block(parser);
+        }
+    }
+
+    let end_span = else_arm.as_ref()
+        .map(|t| t.span)
+        .or_else(|| else_if_arms.last().map(|t| t.block.span))
+        .unwrap_or(if_arm.block.span);
+
+    let span = Span::new_spanned(if_kw.span, end_span);
+    let kind = ExpressionKind::If(Box::new(if_arm), else_if_arms, else_arm);
+
+    Some(Expression { kind, span })
 }
 
 #[cfg(test)]

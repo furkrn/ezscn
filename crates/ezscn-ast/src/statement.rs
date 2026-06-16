@@ -15,7 +15,6 @@ pub enum StatementKind<'e> {
     Expression(Expression<'e>),
     Return(Option<Expression<'e>>),
     Let(ThinVec<IdentifierOrUnderscore<'e>>, Option<Expression<'e>>),
-    If(IfStatement<'e>),
     ForLoop(ForLoopStatement<'e>),
     WhileLoop(WhileLoopStatement<'e>),
     Break,
@@ -26,19 +25,6 @@ pub enum StatementKind<'e> {
 pub enum IdentifierOrUnderscore<'i> {
     Identifier(Identifier<'i>),
     Underscore,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct IfStatement<'e> {
-    pub if_arm: IfArm<'e>,
-    pub else_if_arms: ThinVec<IfArm<'e>>,
-    pub else_arm: Option<Block<'e>>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct IfArm<'e> {
-    pub clause: Expression<'e>,
-    pub block: Block<'e>,
 }
 
 #[derive(Debug, Eq, PartialEq)]

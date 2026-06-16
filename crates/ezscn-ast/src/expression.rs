@@ -35,6 +35,7 @@ pub enum ExpressionKind<'s> {
     Tuple(ThinVec<Expression<'s>>),
     Match(Box<Expression<'s>>, ThinVec<MatchArm<'s>>),
     ShortCurcuit(Box<Expression<'s>>),
+    If(Box<IfArm<'s>>, ThinVec<IfArm<'s>>, Option<Block<'s>>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -133,5 +134,11 @@ pub enum PostOperator {
 pub struct MatchArm<'e> {
     pub expression: Option<Expression<'e>>,
     pub if_clause: Option<Expression<'e>>,
+    pub block: Block<'e>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct IfArm<'e> {
+    pub clause: Expression<'e>,
     pub block: Block<'e>,
 }
