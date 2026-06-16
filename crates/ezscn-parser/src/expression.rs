@@ -741,17 +741,24 @@ fn match_arm<'t>(parser: &mut Parser<'t>) -> Option<MatchArm<'t>> {
         parser.expression()
     };
 
+    let if_clause = if parser.next_if_kind(TokenKind::IfKeyword).is_some() {
+        Some(parser.expression()?)
+    } else {
+        None
+    };
+
     parser.advance_until_kind(TokenKind::FatArrow)?;
-    let block = if parser.is_next(TokenKind::ParanthesisLeft) {
+    let block = if parser.is_next(TokenKind::CurlyBracketLeft) {
         block(parser)?
     } else {
         let expr_block = assignment_expression(parser)?;
         let span = expr_block.span;
         let kind = StatementKind::Expression(expr_block);
-        Spanned::new(thin_vec![Statement { kind, span }], span)
-
+        
+        Spanned::new(thin_vec![Statement { kind, span }], span)    
     };
-    Some(MatchArm { expression, block })
+    
+    Some(MatchArm { expression, if_clause, block })
 }
 
 #[cfg(test)]

@@ -132,5 +132,6 @@ pub enum PostOperator {
 #[derive(Debug, Eq, PartialEq)]
 pub struct MatchArm<'e> {
     pub expression: Option<Expression<'e>>,
+    pub if_clause: Option<Expression<'e>>,
     pub block: Block<'e>,
 }
