@@ -80,6 +80,12 @@ pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
         identifiers.push(parser.advance_until_identifier_or_underscore()?)
     }
 
+    let return_type = if parser.next_if_kind(TokenKind::Colon).is_some() {
+        Some(parser.return_type()?)
+    } else {
+        None
+    };
+
     let expression = if parser.token_stream.is_next(TokenKind::Equals) {
         parser.advance_until_kind(TokenKind::Equals)?;
         Some(parser.expression()?)
@@ -90,7 +96,7 @@ pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
 
     let span = Span::new_spanned(let_kw.span, semicolon.span);
-    let kind = StatementKind::Let(identifiers, expression);
+    let kind = StatementKind::Let(identifiers, return_type, expression);
 
     Some(Statement { kind, span })
 }
