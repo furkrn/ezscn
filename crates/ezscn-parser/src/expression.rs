@@ -1,14 +1,13 @@
 use alloc::boxed::Box;
 use core::str::FromStr;
 use ezscn_ast::expression::*;
-use ezscn_ast::statement::{Statement, StatementKind};
 use ezscn_error::{LiteralKind, ParseError, ParseErrorKind};
 use ezscn_tokens::{BaseN, CharacterEscapeType, Token,
     TokenKind, Span, SpanImpl, Spanned, StringOptions};
 use ordered_float::OrderedFloat;
 use thin_vec::thin_vec;
 
-use crate::statement::block;
+use crate::statement::{statement, block};
 use crate::Parser;
 use crate::string::*;
 
@@ -753,11 +752,10 @@ fn match_arm<'t>(parser: &mut Parser<'t>) -> Option<MatchArm<'t>> {
     let block = if parser.is_next(TokenKind::CurlyBracketLeft) {
         block(parser)?
     } else {
-        let expr_block = assignment_expression(parser)?;
-        let span = expr_block.span;
-        let kind = StatementKind::Expression(expr_block);
-        
-        Spanned::new(thin_vec![Statement { kind, span }], span)    
+        let statement = statement(parser)?;
+        let span = statement.span;
+
+        Spanned::new(thin_vec![statement], span)
     };
     
     Some(MatchArm { expression, if_clause, block })

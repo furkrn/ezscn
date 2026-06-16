@@ -22,6 +22,7 @@ pub fn block<'t>(parser: &mut Parser<'t>) -> Option<Block<'t>> {
 #[inline]
 pub fn statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     match parser.peek()? {
+        Token { kind: TokenKind::Semicolon, .. } => empty_statement(parser),
         Token { kind: TokenKind::ReturnKeyword, .. } => return_statement(parser),
         Token { kind: TokenKind::LetKeyword, .. } => let_statement(parser),
         Token { kind: TokenKind::ForKeyword, .. } => for_statement(parser),
@@ -33,12 +34,22 @@ pub fn statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
 }
 
 #[inline]
+pub fn empty_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
+    let semicolon = parser.next_if_kind(TokenKind::Semicolon)?;
+
+    let span = semicolon.span;
+    let kind = StatementKind::Empty;
+
+    Some(Statement { kind, span })
+}
+
+#[inline]
 pub fn expression_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     let exp = parser.expression()?;
-    let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
+    let semicolon = parser.next_if_kind(TokenKind::Semicolon);
 
-    let span = Span::new_spanned(exp.span, semicolon.span);
-    let kind = StatementKind::Expression(exp);
+    let span = Span::new_spanned(exp.span, semicolon.map(|s| s.span).unwrap_or(exp.span));
+    let kind = StatementKind::Expression(exp, semicolon.is_none());
 
     Some(Statement { kind, span })
 }

@@ -12,7 +12,8 @@ pub struct Statement<'e> {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum StatementKind<'e> {
-    Expression(Expression<'e>),
+    Empty,
+    Expression(Expression<'e>, bool),
     Return(Option<Expression<'e>>),
     Let(ThinVec<IdentifierOrUnderscore<'e>>, Option<ReturnTypes<'e>>, Option<Expression<'e>>),
     ForLoop(ForLoopStatement<'e>),
