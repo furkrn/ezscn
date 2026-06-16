@@ -190,7 +190,7 @@ pub fn instanceof_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'
     let mut end_span = type_path.span;
     let identifier = parser.next_if_map(|t| {
         match t {
-            Some(Token { kind: TokenKind::Identifier, span }) => {
+            Some(Token { kind: TokenKind::Identifier, span, .. }) => {
                 end_span = span;
                 Ok(&parser.input[span])
             },
@@ -288,17 +288,17 @@ fn multiplicative_op(parser: &mut Parser<'_>) -> Option<BinaryOperator> {
 pub fn unary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let unary_matcher = parser.next_if_map(|t| {
         match t {
-            Some(Token { kind: TokenKind::Not, span }) =>
+            Some(Token { kind: TokenKind::Not, span, .. }) =>
                 Ok((UnaryOperator::Not, span)),
-            Some(Token { kind: TokenKind::Plus, span }) =>
+            Some(Token { kind: TokenKind::Plus, span, .. }) =>
                 Ok((UnaryOperator::Plus, span)),
-            Some(Token { kind: TokenKind::Minus, span }) =>
+            Some(Token { kind: TokenKind::Minus, span, .. }) =>
                 Ok((UnaryOperator::Negative, span)),
-            Some(Token { kind: TokenKind::PlusPlus, span }) =>
+            Some(Token { kind: TokenKind::PlusPlus, span, .. }) =>
                 Ok((UnaryOperator::Increment, span)),
-            Some(Token { kind: TokenKind::MinusMinus, span }) =>
+            Some(Token { kind: TokenKind::MinusMinus, span, .. }) =>
                 Ok((UnaryOperator::Decrement, span)),
-            Some(Token { kind: TokenKind::Tilde, span }) =>
+            Some(Token { kind: TokenKind::Tilde, span, .. }) =>
                 Ok((UnaryOperator::Complement, span)),
             token => Err(token),
         }
@@ -392,9 +392,9 @@ pub fn post_op_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'
 fn post_op_span(parser: &mut Parser<'_>) -> Option<(PostOperator, Span)> {
     parser.next_if_map(|t| {
         match t {
-            Some(Token { kind: TokenKind::PlusPlus, span }) =>
+            Some(Token { kind: TokenKind::PlusPlus, span, .. }) =>
                 Ok((PostOperator::Increment, span)),
-            Some(Token { kind: TokenKind::MinusMinus, span }) =>
+            Some(Token { kind: TokenKind::MinusMinus, span, .. }) =>
                 Ok((PostOperator::Decrement, span)),
             token => Err(token),
         }
@@ -438,7 +438,7 @@ pub fn primary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
             null_literal(parser),
         Some(Token { kind: TokenKind::MatchKeyword, .. }) =>
             match_expression(parser),
-        Some(Token { kind: TokenKind::IfKeyword, .. }) => 
+        Some(Token { kind: TokenKind::IfKeyword, .. }) =>
             if_expression(parser),
         _ => {
             let token = parser.next()?;
@@ -453,11 +453,11 @@ pub fn primary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
 pub fn access_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let (access_expression, span) = parser.advance_map(|t| {
         match t {
-            Some(Token { kind: TokenKind::Identifier, span }) =>
+            Some(Token { kind: TokenKind::Identifier, span, .. }) =>
                 Ok((AccessExpression::Identifier(&parser.input[span]), span)),
-            Some(Token { kind: TokenKind::SelfKeyword, span }) =>
+            Some(Token { kind: TokenKind::SelfKeyword, span, .. }) =>
                 Ok((AccessExpression::SelfAccess, span)),
-            Some(Token { kind: found, span }) => {
+            Some(Token { kind: found, span, .. }) => {
                 let kind = ParseErrorKind::InvalidToken(TokenKind::Identifier, found);
                 Err(ParseError::new(kind, span))
             },
@@ -556,13 +556,13 @@ pub fn literal_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
 pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let (options, quote_start, span) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::StringLiteral { options, quote_start, terminated }, span }) =>
+            Some(Token { kind: TokenKind::StringLiteral { options, quote_start, terminated, .. }, span, .. }) =>
                 if terminated {
                     Ok((options, quote_start, span))
                 } else {
                     Err(ParseError::new(ParseErrorKind::UnterminatedString, span))
                 },
-            Some(Token { kind, span }) =>
+            Some(Token { kind, span, .. }) =>
                 Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::String, Some(kind)), span)),
             None => {
                 let span = Span::empty_from_start(parser.input.len());
@@ -593,13 +593,13 @@ pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 pub fn char_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let (escape_type, span) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::CharacterLiteral { escape_type, terminated }, span }) =>
+            Some(Token { kind: TokenKind::CharacterLiteral { escape_type, terminated }, span, .. }) =>
                 if terminated {
                     Ok((escape_type, span))
                 } else {
                     Err(ParseError::new(ParseErrorKind::UnterminatedChar, span))
                 }
-            Some(Token { kind, span }) =>
+            Some(Token { kind, span, .. }) =>
                 Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Char, Some(kind)), span)),
             None => {
                 let span = Span::empty_from_start(parser.input.len());
@@ -632,14 +632,14 @@ pub fn char_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 pub fn integer_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let (base, span) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::NumberLiteral { base, is_floating }, span }) => {
+            Some(Token { kind: TokenKind::NumberLiteral { base, is_floating }, span, .. }) => {
                 if is_floating {
                     Err(ParseError::new(ParseErrorKind::ExpectedIntegerFoundFloating, span))
                 } else {
                     Ok((base, span))
                 }
             },
-            Some(Token { kind, span }) =>
+            Some(Token { kind, span, .. }) =>
                 Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Integer, Some(kind)), span)),
             None => {
                 let span = Span::empty_from_start(parser.input.len());
@@ -668,9 +668,9 @@ pub fn integer_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 pub fn float_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let span = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, .. }, span }) =>
+            Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, .. }, span, .. }) =>
                 Ok(span),
-            Some(Token { kind, span }) =>
+            Some(Token { kind, span, .. }) =>
                 Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Float, Some(kind)), span)),
             None => {
                 let span = Span::empty_from_start(parser.input.len());
@@ -693,11 +693,11 @@ pub fn float_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 pub fn boolean_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let (bool_result, span) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::TrueKeyword, span }) =>
+            Some(Token { kind: TokenKind::TrueKeyword, span, .. }) =>
                 Ok((true, span)),
-            Some(Token { kind: TokenKind::FalseKeyword, span }) =>
+            Some(Token { kind: TokenKind::FalseKeyword, span, .. }) =>
                 Ok((false, span)),
-            Some(Token { kind, span }) =>
+            Some(Token { kind, span, .. }) =>
                 Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Boolean, Some(kind)), span)),
             None => {
                 let span = Span::empty_from_start(parser.input.len());
@@ -757,7 +757,7 @@ fn match_arm<'t>(parser: &mut Parser<'t>) -> Option<MatchArm<'t>> {
 
         Spanned::new(thin_vec![statement], span)
     };
-    
+
     Some(MatchArm { expression, if_clause, block })
 }
 

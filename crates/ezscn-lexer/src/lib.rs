@@ -37,6 +37,11 @@ impl<'t> TokenStream<'t> {
     }
 
     #[inline]
+    pub const fn line(&self) -> usize {
+        self.inner.line
+    }
+
+    #[inline]
     pub fn peek(&mut self) -> Option<&Token> {
         let iter = &mut self.inner;
         self.peek.get_or_insert_with(|| iter.next()).as_ref()
@@ -78,6 +83,7 @@ impl<'t> TokenStream<'t> {
 pub struct TokenStreamInner<'s> {
     cursor: Peekable<CharIndices<'s>>,
     raw: &'s str,
+    line: usize,
 }
 
 impl Iterator for TokenStreamInner<'_> {
@@ -93,10 +99,11 @@ impl Iterator for TokenStreamInner<'_> {
             (start, char)
         };
 
+        let line = self.line;
         let (kind, end) = self.match_token(start, char);
         let end = end.unwrap_or(start + char.len_utf8());
 
-        Some(Token::new(kind, Span::new(start, end)))
+        Some(Token::new(kind, Span::new(start, end), line))
     }
 }
 
@@ -106,6 +113,7 @@ impl<'a> TokenStreamInner<'a> {
         TokenStreamInner {
             cursor: raw.char_indices().peekable(),
             raw,
+            line: 0
         }
     }
 
@@ -446,7 +454,8 @@ impl<'a> TokenStreamInner<'a> {
             }
         };
 
-        (TokenKind::StringLiteral { options, quote_start, terminated }, end)
+        let ending_line = self.line;
+        (TokenKind::StringLiteral { options, quote_start, terminated, ending_line }, end)
     }
 
     #[inline]
@@ -482,7 +491,13 @@ impl<'a> TokenStreamInner<'a> {
 
     #[inline]
     pub(crate) fn consume_char(&mut self) -> Option<(usize, char)> {
+        let line = &mut self.line;
         self.cursor.next()
+            .inspect(|(_, c)| {
+                if *c == '\n' {
+                    *line += 1;
+                }
+            })
     }
 
     pub(crate) fn consume_if<F>(&mut self, f: F) -> Option<(usize, char)>
@@ -513,6 +528,10 @@ impl<'a> TokenStreamInner<'a> {
             while let Some((i, c)) = self.cursor.next_if_map(|(i, c)| if (f)(i, c) { Ok((i, c)) } else { Err((i, c)) }) {
                 if start.is_none() {
                     start = Some(i);
+                }
+
+                if c == '\n' {
+                    self.line += 1;
                 }
 
                 end = i + c.len_utf8();
@@ -552,19 +571,19 @@ mod tests {
         let str = r"{}()[];,^\?_=";
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CurlyBracketLeft, span: Span::new(0, 1) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CurlyBracketRight, span: Span::new(1, 2) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ParanthesisLeft, span: Span::new(2, 3) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ParanthesisRight, span: Span::new(3, 4) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SquareBracketLeft, span: Span::new(4, 5) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SquareBracketRight, span: Span::new(5, 6) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Semicolon, span: Span::new(6, 7) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Comma, span: Span::new(7, 8) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Caret, span: Span::new(8, 9) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Backslash, span: Span::new(9, 10) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::QuestionMark, span: Span::new(10, 11) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Underscore, span: Span::new(11, 12) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Equals, span: Span::new(12, 13) }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CurlyBracketLeft, span: Span::new(0, 1), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CurlyBracketRight, span: Span::new(1, 2), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ParanthesisLeft, span: Span::new(2, 3), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ParanthesisRight, span: Span::new(3, 4), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SquareBracketLeft, span: Span::new(4, 5), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SquareBracketRight, span: Span::new(5, 6), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Semicolon, span: Span::new(6, 7), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Comma, span: Span::new(7, 8), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Caret, span: Span::new(8, 9), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Backslash, span: Span::new(9, 10), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::QuestionMark, span: Span::new(10, 11), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Underscore, span: Span::new(11, 12), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Equals, span: Span::new(12, 13), line: 0 }));
         assert_eq!(stream.next(), None)
     }
 
@@ -573,17 +592,17 @@ mod tests {
         let str = ". .. ... : :: + += ++ - -= --";
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Dot, span: Span::new(0, 1) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::DotDot, span: Span::new(2, 4) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::DotDotDot, span: Span::new(5, 8) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Colon, span: Span::new(9, 10) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ColonColon, span: Span::new(11, 13) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Plus, span: Span::new(14, 15) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::PlusEquals, span: Span::new(16, 18) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::PlusPlus, span: Span::new(19, 21) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Minus, span: Span::new(22, 23) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::MinusEquals, span: Span::new(24, 26) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::MinusMinus, span: Span::new(27, 29) }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Dot, span: Span::new(0, 1), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::DotDot, span: Span::new(2, 4), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::DotDotDot, span: Span::new(5, 8), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Colon, span: Span::new(9, 10), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ColonColon, span: Span::new(11, 13), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Plus, span: Span::new(14, 15), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::PlusEquals, span: Span::new(16, 18), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::PlusPlus, span: Span::new(19, 21), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Minus, span: Span::new(22, 23), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::MinusEquals, span: Span::new(24, 26), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::MinusMinus, span: Span::new(27, 29), line: 0 }));
         assert_eq!(stream.next(), None);
     }
 
@@ -592,33 +611,33 @@ mod tests {
         let str = "< << <<= <= > >> >>= >= = == ! != & &= && | |= || ~ ~= * *= / /= % %= =>";
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::LessThan, span: Span::new(0, 1) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BitwiseLeft, span: Span::new(2, 4) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BitwiseLeftCompound, span: Span::new(5, 8) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::LessThanEquals, span: Span::new(9, 11) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::GreaterThan, span: Span::new(12, 13) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BitwiseRight, span: Span::new(14, 16) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BitwiseRightCompound, span: Span::new(17, 20) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::GreaterThanEquals, span: Span::new(21, 23) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Equals, span: Span::new(24, 25) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::EqualsEquals, span: Span::new(26, 28) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Not, span: Span::new(29, 30) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NotEquals, span: Span::new(31, 33) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::And, span: Span::new(34, 35) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::AndEquals, span: Span::new(36, 38) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::AndAnd, span: Span::new(39, 41) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Or, span: Span::new(42, 43) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::OrEquals, span: Span::new(44, 46) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::OrOr, span: Span::new(47, 49) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Tilde, span: Span::new(50, 51) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::TildeEquals, span: Span::new(52, 54) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Star, span: Span::new(55, 56) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StarEquals, span: Span::new(57, 59) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Slash, span: Span::new(60, 61) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SlashEquals, span: Span::new(62, 64) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Percent, span: Span::new(65, 66) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::PercentEquals, span: Span::new(67, 69) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FatArrow, span: Span::new(70, 72) }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::LessThan, span: Span::new(0, 1), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BitwiseLeft, span: Span::new(2, 4), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BitwiseLeftCompound, span: Span::new(5, 8), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::LessThanEquals, span: Span::new(9, 11), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::GreaterThan, span: Span::new(12, 13), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BitwiseRight, span: Span::new(14, 16), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BitwiseRightCompound, span: Span::new(17, 20), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::GreaterThanEquals, span: Span::new(21, 23), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Equals, span: Span::new(24, 25), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::EqualsEquals, span: Span::new(26, 28), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Not, span: Span::new(29, 30), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NotEquals, span: Span::new(31, 33), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::And, span: Span::new(34, 35), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::AndEquals, span: Span::new(36, 38), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::AndAnd, span: Span::new(39, 41), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Or, span: Span::new(42, 43), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::OrEquals, span: Span::new(44, 46), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::OrOr, span: Span::new(47, 49), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Tilde, span: Span::new(50, 51), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::TildeEquals, span: Span::new(52, 54), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Star, span: Span::new(55, 56), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StarEquals, span: Span::new(57, 59), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Slash, span: Span::new(60, 61), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SlashEquals, span: Span::new(62, 64), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Percent, span: Span::new(65, 66), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::PercentEquals, span: Span::new(67, 69), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FatArrow, span: Span::new(70, 72), line: 0 }));
         assert_eq!(stream.next(), None);
     }
 
@@ -627,9 +646,9 @@ mod tests {
         let str = "null true false";
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NullKeyword, span: Span::new(0, 4) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::TrueKeyword, span: Span::new(5, 9) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FalseKeyword, span: Span::new(10, 15) }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NullKeyword, span: Span::new(0, 4), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::TrueKeyword, span: Span::new(5, 9), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FalseKeyword, span: Span::new(10, 15), line: 0 }));
         assert_eq!(stream.next(), None);
     }
 
@@ -638,11 +657,11 @@ mod tests {
         let str = "mrb $mrb @mrb _mrb mşrb";
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(0, 3) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(4, 8) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(9, 13) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(14, 18) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(19, 24) }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(0, 3), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(4, 8), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(9, 13), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(14, 18), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(19, 24), line: 0 }));
         assert_eq!(stream.next(), None);
     }
 
@@ -652,28 +671,28 @@ mod tests {
             let if else while for in sig new return feature import continue break is"#;
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::EnumKeyword, span: Span::new(0, 4) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StructKeyword, span: Span::new(5, 11) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ConfigKeyword, span: Span::new(12, 18) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ConstKeyword, span: Span::new(19, 24) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FlagsKeyword, span: Span::new(25, 30) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SelfKeyword, span: Span::new(31, 35) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FuncKeyword, span: Span::new(36, 40) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::MatchKeyword, span: Span::new(41, 46) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::LetKeyword, span: Span::new(59, 62) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::IfKeyword, span: Span::new(63, 65) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ElseKeyword, span: Span::new(66, 70) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::WhileKeyword, span: Span::new(71, 76) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ForKeyword, span: Span::new(77, 80) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::InKeyword, span: Span::new(81, 83) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SigKeyword, span: Span::new(84, 87) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NewKeyword, span: Span::new(88, 91) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ReturnKeyword, span: Span::new(92, 98) }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FeatureKeyword, span: Span::new(99, 106)}));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ImportKeyword, span: Span::new(107, 113)}));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ContinueKeyword, span: Span::new(114, 122)}));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BreakKeyword, span: Span::new(123, 128)}));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::IsKeyword, span: Span::new(129, 131)}));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::EnumKeyword, span: Span::new(0, 4), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StructKeyword, span: Span::new(5, 11), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ConfigKeyword, span: Span::new(12, 18), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ConstKeyword, span: Span::new(19, 24), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FlagsKeyword, span: Span::new(25, 30), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SelfKeyword, span: Span::new(31, 35), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FuncKeyword, span: Span::new(36, 40), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::MatchKeyword, span: Span::new(41, 46), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::LetKeyword, span: Span::new(59, 62), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::IfKeyword, span: Span::new(63, 65), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ElseKeyword, span: Span::new(66, 70), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::WhileKeyword, span: Span::new(71, 76), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ForKeyword, span: Span::new(77, 80), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::InKeyword, span: Span::new(81, 83), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::SigKeyword, span: Span::new(84, 87), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NewKeyword, span: Span::new(88, 91), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ReturnKeyword, span: Span::new(92, 98), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::FeatureKeyword, span: Span::new(99, 106), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ImportKeyword, span: Span::new(107, 113), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::ContinueKeyword, span: Span::new(114, 122), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::BreakKeyword, span: Span::new(123, 128), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::IsKeyword, span: Span::new(129, 131), line: 1 }));
         assert_eq!(stream.next(), None);
     }
 
@@ -685,28 +704,28 @@ mod tests {
             5.32 2.4e9 2.432e+11 222.233e-333 51123.3932e-999 2222.4e"#;
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Bin, is_floating: false }, span: Span::new(0, 6) })); // 0b0010
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Bin, is_floating: false }, span: Span::new(7, 13) })); // 0b0100
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Bin,  is_floating: false }, span: Span::new(14, 20) })); // 0b1000
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Octal, is_floating: false }, span: Span::new(21, 30) })); // 0o1234567
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Octal, is_floating: false }, span: Span::new(43, 52) })); // 0o7564312
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Octal, is_floating: false }, span: Span::new(53, 62) })); // 0o7162534
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Hex, is_floating: false }, span: Span::new(63, 80) })); // 0x123456789ABCDEF
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Hex, is_floating: false }, span: Span::new(81, 91) })); // 0xFABCDE22
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Hex, is_floating: false }, span: Span::new(92, 101) })); // 0x31245DA
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(114, 123) })); // 129381274
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(124, 132) })); // 17483291
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(133, 141) })); // 17823646
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(142, 143) })); // 9
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(144, 145) })); // 1
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(146, 147) })); // 8
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(148, 152) })); // 6.54
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(165, 169) })); // 5.32
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(170, 175) })); // 2.4e8
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(176, 185) })); // 2.432e+11
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(186, 198) })); // 222.233e-333
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(199, 214) })); // 51123.3932e-999
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(215, 222) })); // 2222.4e
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Bin, is_floating: false }, span: Span::new(0, 6), line: 0 })); // 0b0010
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Bin, is_floating: false }, span: Span::new(7, 13), line: 0 })); // 0b0100
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Bin,  is_floating: false }, span: Span::new(14, 20), line: 0 })); // 0b1000
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Octal, is_floating: false }, span: Span::new(21, 30), line: 0 })); // 0o1234567
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Octal, is_floating: false }, span: Span::new(43, 52), line: 1 })); // 0o7564312
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Octal, is_floating: false }, span: Span::new(53, 62), line: 1 })); // 0o7162534
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Hex, is_floating: false }, span: Span::new(63, 80), line: 1 })); // 0x123456789ABCDEF
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Hex, is_floating: false }, span: Span::new(81, 91), line: 1 })); // 0xFABCDE22
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Hex, is_floating: false }, span: Span::new(92, 101), line: 1 })); // 0x31245DA
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(114, 123), line: 2 })); // 129381274
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(124, 132), line: 2 })); // 17483291
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(133, 141), line: 2 })); // 17823646
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(142, 143), line: 2 })); // 9
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(144, 145), line: 2 })); // 1
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: false }, span: Span::new(146, 147), line: 2 })); // 8
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(148, 152), line: 2 })); // 6.54
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(165, 169), line: 3 })); // 5.32
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(170, 175), line: 3 })); // 2.4e8
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(176, 185), line: 3 })); // 2.432e+11
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(186, 198), line: 3 })); // 222.233e-333
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(199, 214), line: 3 })); // 51123.3932e-999
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, is_floating: true }, span: Span::new(215, 222), line: 3 })); // 2222.4e
         assert_eq!(stream.next(), None);
     }
 
@@ -717,34 +736,34 @@ mod tests {
             '\uFFFF' '\uAAAA '\U0010FFFE' '\U0010FFFE '\p' '\o' 'bbb' "#;
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: true }, span: Span::new(0, 3) })); // 'a'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: false }, span: Span::new(4, 6) })); // 'a
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: true }, span: Span::new(7, 10) })); // '!'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: true }, span: Span::new(11, 15) })); // 'ş'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(16, 20) })); // '\a'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: false }, span: Span::new(21, 24) })); // '\a
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(25, 29) })); // '\b'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(30, 34) })); // '\e'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(35, 39) })); // '\f'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(40, 44) })); // '\n'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(57, 61) })); // '\r'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(62, 66) })); // '\t'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(67, 71) })); // '\v'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(72, 76) })); // '\\'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(77, 81) })); // '\?'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(82, 86) })); // '\"'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Hex, terminated: true }, span: Span::new(87, 92) })); // '\xF'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Hex, terminated: true }, span: Span::new(93, 101) })); // '\x1111'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Hex, terminated: false }, span: Span::new(102, 109) })); // '\x1000
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Utf16, terminated: true }, span: Span::new(122, 130) })); // '\uFFFF'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Utf16, terminated: false }, span: Span::new(131, 138) })); // '\uAAAA
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Utf32, terminated: true }, span: Span::new(139, 151) })); // '\U0010FFFE'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Utf32, terminated: false }, span: Span::new(152, 163) })); // '\U0010FFFE
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(164, 168) })); // '\p'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(169, 173) })); // '\o'
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: false }, span: Span::new(174, 176) })); // 'b
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(176, 178) })); // bb
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: false }, span: Span::new(178, 180) })); // "' "
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: true }, span: Span::new(0, 3), line: 0 })); // 'a'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: false }, span: Span::new(4, 6), line: 0 })); // 'a
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: true }, span: Span::new(7, 10), line: 0 })); // '!'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: true }, span: Span::new(11, 15), line: 0 })); // 'ş'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(16, 20), line: 0 })); // '\a'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: false }, span: Span::new(21, 24), line: 0 })); // '\a
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(25, 29), line: 0 })); // '\b'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(30, 34), line: 0 })); // '\e'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(35, 39), line: 0 })); // '\f'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(40, 44), line: 0 })); // '\n'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(57, 61), line: 1 })); // '\r'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(62, 66), line: 1 })); // '\t'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(67, 71), line: 1 })); // '\v'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(72, 76), line: 1 })); // '\\'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(77, 81), line: 1 })); // '\?'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(82, 86), line: 1 })); // '\"'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Hex, terminated: true }, span: Span::new(87, 92), line: 1 })); // '\xF'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Hex, terminated: true }, span: Span::new(93, 101), line: 1 })); // '\x1111'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Hex, terminated: false }, span: Span::new(102, 109), line: 1 })); // '\x1000
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Utf16, terminated: true }, span: Span::new(122, 130), line: 2 })); // '\uFFFF'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Utf16, terminated: false }, span: Span::new(131, 138), line: 2 })); // '\uAAAA
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Utf32, terminated: true }, span: Span::new(139, 151), line: 2 })); // '\U0010FFFE'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Utf32, terminated: false }, span: Span::new(152, 163), line: 2 })); // '\U0010FFFE
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(164, 168), line: 2 })); // '\p'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::Simple, terminated: true }, span: Span::new(169, 173), line: 2 })); // '\o'
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: false }, span: Span::new(174, 176), line: 2 })); // 'b
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Identifier, span: Span::new(176, 178), line: 2 })); // bb
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::CharacterLiteral { escape_type: CharacterEscapeType::None, terminated: false }, span: Span::new(178, 180), line: 2 })); // "' "
         assert_eq!(stream.next(), None);
     }
 
@@ -756,18 +775,18 @@ mod tests {
             m"unterminated multiline""#;
         let mut stream = TokenStream::from(str);
 
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::empty(), quote_start: 1, terminated: true }, span: Span::new(1, 3) })); // ""
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::empty(), quote_start: 4, terminated: true }, span: Span::new(4, 11) })); // "ezscn"
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::empty(), quote_start: 12, terminated: true }, span: Span::new(12, 34) })); // "escaped ezscn \t\t\n"
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::empty(), quote_start: 35, terminated: false }, span: Span::new(35, 48) })); // "unterminated (consumed newline!!, so that's why 49, this might behavior might be changed)
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::RAWSTR, quote_start: 62, terminated: true }, span: Span::new(61, 90)} )); // r"raw ezscn \ \ \\ \\\\ \e\e"
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR, quote_start: 92, terminated: true }, span: Span::new(91, 113)} )); // m"ez
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::empty(), quote_start: 1, terminated: true, ending_line: 0 }, span: Span::new(1, 3), line: 0 })); // ""
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::empty(), quote_start: 4, terminated: true, ending_line: 0 }, span: Span::new(4, 11), line: 0 })); // "ezscn"
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::empty(), quote_start: 12, terminated: true, ending_line: 0 }, span: Span::new(12, 34), line: 0 })); // "escaped ezscn \t\t\n"
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::empty(), quote_start: 35, terminated: false, ending_line: 1 }, span: Span::new(35, 48), line: 0 })); // "unterminated
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::RAWSTR, quote_start: 62, terminated: true, ending_line: 1 }, span: Span::new(61, 90), line: 1 })); // r"raw ezscn \ \ \\ \\\\ \e\e"
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR, quote_start: 92, terminated: true, ending_line: 2 }, span: Span::new(91, 113), line: 1 })); // m"ez
                                                                                                                                                  //scn"m
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR | StringOptions::RAWSTR, quote_start: 116, terminated: true }, span: Span::new(114, 122)} )); // mr"wtf"m
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR | StringOptions::RAWSTR, quote_start: 125, terminated: true }, span: Span::new(123, 130)} )); // MR"tf"m
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR | StringOptions::RAWSTR, quote_start: 133, terminated: true }, span: Span::new(131, 139)} )); // rm"TFF"m
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR | StringOptions::RAWSTR, quote_start: 142, terminated: true }, span: Span::new(140, 148)} )); // RM"pat"m
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR, quote_start: 162, terminated: false }, span: Span::new(161, 186)} )); // m"unterminated multiline"
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR | StringOptions::RAWSTR, quote_start: 116, terminated: true, ending_line: 2 }, span: Span::new(114, 122), line: 2 })); // mr"wtf"m
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR | StringOptions::RAWSTR, quote_start: 125, terminated: true, ending_line: 2 }, span: Span::new(123, 130), line: 2 })); // MR"tf"m
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR | StringOptions::RAWSTR, quote_start: 133, terminated: true, ending_line: 2 }, span: Span::new(131, 139), line: 2 })); // rm"TFF"m
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR | StringOptions::RAWSTR, quote_start: 142, terminated: true, ending_line: 2 }, span: Span::new(140, 148), line: 2 })); // RM"pat"m
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::StringLiteral { options: StringOptions::MULTILINE_STR, quote_start: 162, terminated: false, ending_line: 3 }, span: Span::new(161, 186), line: 3 })); // m"unterminated multiline"
         assert_eq!(stream.next(), None);
     }
 }

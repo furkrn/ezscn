@@ -110,7 +110,7 @@ impl<'t> Parser<'t> {
             TokenKind::ParanthesisLeft => {
                 let tuple_list = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::return_type)?;
                 self.advance_until_kind(TokenKind::ParanthesisRight)?;
-                    
+
                 (StructMemberDefinition::Tuple(tuple_list), self.advance_until_kind(TokenKind::Semicolon)?)
             },
             TokenKind::CurlyBracketLeft => {
@@ -207,12 +207,12 @@ impl<'t> Parser<'t> {
         let (block, end_span) = if !self.is_next(TokenKind::Semicolon) {
             let block = statement::block(self)?;
             let span = block.span;
-            
+
             (Some(block), span)
         } else {
             (None, self.next()?.span)
         };
-        
+
         let span = Span::new_spanned(func_kw.span, end_span);
         let kind = ItemKind::Func(FuncItem { identifier, params, block, return_type });
 
@@ -328,9 +328,9 @@ impl<'t> Parser<'t> {
     pub fn advance_until_identifier_or_underscore_spanned(&mut self) -> Option<Spanned<IdentifierOrUnderscore<'t>>> {
         self.advance_map(|t| {
             match t {
-                Some(Token { kind: TokenKind::Identifier, span }) => Ok(Spanned::new(IdentifierOrUnderscore::Identifier(&self.input[span]), span)),
-                Some(Token { kind: TokenKind::Underscore, span }) => Ok(Spanned::new(IdentifierOrUnderscore::Underscore, span)),
-                Some(Token { kind, span }) => Err(ParseError::new(ParseErrorKind::InvalidToken(TokenKind::Identifier, kind), span)),
+                Some(Token { kind: TokenKind::Identifier, span, .. }) => Ok(Spanned::new(IdentifierOrUnderscore::Identifier(&self.input[span]), span)),
+                Some(Token { kind: TokenKind::Underscore, span, .. }) => Ok(Spanned::new(IdentifierOrUnderscore::Underscore, span)),
+                Some(Token { kind, span, .. }) => Err(ParseError::new(ParseErrorKind::InvalidToken(TokenKind::Identifier, kind), span)),
                 None => {
                     let kind = ParseErrorKind::ExpectedToken(TokenKind::Identifier);
                     let span = Span::empty_from_start(self.input.len());

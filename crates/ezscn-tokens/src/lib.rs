@@ -109,13 +109,14 @@ impl<T> Spanned<T> {
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
-    pub span: Span
+    pub span: Span,
+    pub line: usize,
 }
 
 impl Token {
     #[inline]
-    pub fn new(kind: TokenKind, span: Span) -> Self {
-        Self { kind, span }
+    pub fn new(kind: TokenKind, span: Span, line: usize) -> Self {
+        Self { kind, span, line }
     }
 
     #[inline]
@@ -219,6 +220,7 @@ pub enum TokenKind {
         options: StringOptions,
         quote_start: usize,
         terminated: bool,
+        ending_line: usize,
     },
     NumberLiteral {
         base: BaseN,
