@@ -9,6 +9,7 @@ pub struct UnescapedStringBuilder<'t> {
     iter: Peekable<Chars<'t>>,
     input: &'t str,
     current: usize,
+    line: usize,
     errors: &'t mut ThinVec<ParseError>,
 }
 
@@ -26,31 +27,43 @@ impl<'t> Iterator for UnescapedStringBuilder<'t> {
 
 impl<'t> UnescapedStringBuilder<'t> {
     #[inline]
-    pub fn new(input: &'t str, errors: &'t mut ThinVec<ParseError>) -> Self {
+    pub fn new(input: &'t str, line: usize, errors: &'t mut ThinVec<ParseError>) -> Self {
         let iter = input.chars()
             .peekable();
 
-        UnescapedStringBuilder { iter, input, current: 0, errors }
+        UnescapedStringBuilder { iter, input, current: 0, line, errors }
     }
 
     #[inline]
     fn consume_char(&mut self) -> Option<char> {
         let current = &mut self.current;
+        let line = &mut self.line;
         self.iter.next()
-            .inspect(|c| *current += c.len_utf8())
+            .inspect(|c| { 
+                *current += c.len_utf8();
+                if *c == '\n' {
+                    *line += 1;
+                }
+            })
     }
 
     fn next_if(&mut self, f: impl FnOnce(&char) -> bool) -> Option<char> {
         let current = &mut self.current;
+        let line = &mut self.line;
         self.iter.next_if(f)
-            .inspect(|c| *current += c.len_utf8())
+            .inspect(|c| { 
+                *current += c.len_utf8();
+                if *c == '\n' {
+                    *line += 1;
+                }
+            })
     }
 
     #[inline]
     fn escape_seq(&mut self) -> Option<char> {
         let Some(current_char) = self.consume_char() else {
             let span = Span::empty_from_start(self.current - 1);
-            self.errors.push(ParseError::new(ParseErrorKind::EmptyEscapeSequence, span));
+            self.errors.push(ParseError::new(ParseErrorKind::EmptyEscapeSequence, span, self.line));
             return None
         };
 
@@ -166,7 +179,7 @@ mod tests {
             nfgjkewhgjkerhgjkrehkjgerger"#;
 
         let mut errors = thin_vec![];
-        let sb = UnescapedStringBuilder::new(raw_str, &mut errors);
+        let sb = UnescapedStringBuilder::new(raw_str, 0, &mut errors);
 
         let cow_str: Cow<_> = sb.collect();
 
@@ -178,7 +191,7 @@ mod tests {
     fn can_produce_correct_string_simple_escaped() {
         let raw_str = r"mrb \r\r\n\n\n";
         let mut errors = thin_vec![];
-        let sb = UnescapedStringBuilder::new(raw_str, &mut errors);
+        let sb = UnescapedStringBuilder::new(raw_str, 0, &mut errors);
 
         let cow_str: Cow<_> = sb.collect();
 
@@ -190,7 +203,7 @@ mod tests {
     fn can_produce_correct_string_hex_escaped() {
         let raw_str = r#"mrb \r\n \t\t\t \x0D \u0027 \U00000022"#;
         let mut errors = thin_vec![];
-        let sb = UnescapedStringBuilder::new(raw_str, &mut errors);
+        let sb = UnescapedStringBuilder::new(raw_str, 0, &mut errors);
 
         let cow_str: Cow<_> = sb.collect();
 

@@ -8,12 +8,13 @@ use ezscn_tokens::{Span, Token, TokenKind};
 pub struct ParseError {
     pub kind: ParseErrorKind,
     pub span: Span,
+    pub line: usize,
 }
 
 impl ParseError {
     #[inline]
-    pub const fn new(kind: ParseErrorKind, span: Span) -> Self {
-        ParseError { kind, span }
+    pub const fn new(kind: ParseErrorKind, span: Span, line: usize) -> Self {
+        ParseError { kind, span, line }
     }
 
     #[inline]
@@ -24,6 +25,11 @@ impl ParseError {
     #[inline]
     pub const fn span(&self) -> Span {
         self.span
+    }
+
+    #[inline]
+    pub const fn line(&self) -> usize {
+        self.line
     }
 }
 
@@ -42,7 +48,7 @@ pub enum ParseErrorKind {
     UnknownEscapeSequence,
     CharOutOfRange,
     UnterminatedChar,
-    UnterminatedString,
+    UnterminatedString(usize),
     InvalidTokenForNewExpr(TokenKind),
     ExpectedIdentifierForNewExpr,
     IntError(IntErrorKind),

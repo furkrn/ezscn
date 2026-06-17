@@ -16,6 +16,29 @@ pub mod statement;
 pub(crate) mod string;
 
 #[derive(Debug)]
+pub struct EndLineInformation {
+    pub line: usize,
+    pub len: usize,
+}
+
+impl EndLineInformation {
+    #[inline]
+    pub const fn new(line: usize, len: usize) -> Self {
+        EndLineInformation { line, len }
+    }
+
+    #[inline]
+    pub const fn line(&self) -> usize {
+        self.line
+    }
+
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.len
+    }
+}
+
+#[derive(Debug)]
 pub struct Parser<'t> {
     pub(crate) token_stream: TokenStream<'t>,
     pub(crate) input: &'t str,
@@ -94,13 +117,13 @@ impl<'t> Parser<'t> {
         let identifier_token = self.advance_until_identifier_spanned()?;
         let token = self.advance_map(|token| {
             match token {
-                Some(token) if matches!(token.kind, TokenKind::Semicolon | TokenKind::ParanthesisLeft | TokenKind::CurlyBracketLeft) =>
+                Ok(token) if matches!(token.kind, TokenKind::Semicolon | TokenKind::ParanthesisLeft | TokenKind::CurlyBracketLeft) =>
                     Ok(token),
-                Some(token) =>
-                    Err(ParseError::new(ParseErrorKind::InvalidStructToken(token.kind), token.span)),
-                None => {
-                    let span = Span::new_spanned(struct_kw.span, identifier_token.span);
-                    Err(ParseError::new(ParseErrorKind::UnterminatedStruct, span))
+                Ok(token) =>
+                    Err(ParseError::new(ParseErrorKind::InvalidStructToken(token.kind), token.span, token.line)),
+                Err(EndLineInformation { len, .. }) => {
+                    let span = Span::new_spanned(struct_kw.span, Span::empty_from_start(len));
+                    Err(ParseError::new(ParseErrorKind::UnterminatedStruct, span, struct_kw.line))
                 }
             }
         })?;
@@ -328,13 +351,13 @@ impl<'t> Parser<'t> {
     pub fn advance_until_identifier_or_underscore_spanned(&mut self) -> Option<Spanned<IdentifierOrUnderscore<'t>>> {
         self.advance_map(|t| {
             match t {
-                Some(Token { kind: TokenKind::Identifier, span, .. }) => Ok(Spanned::new(IdentifierOrUnderscore::Identifier(&self.input[span]), span)),
-                Some(Token { kind: TokenKind::Underscore, span, .. }) => Ok(Spanned::new(IdentifierOrUnderscore::Underscore, span)),
-                Some(Token { kind, span, .. }) => Err(ParseError::new(ParseErrorKind::InvalidToken(TokenKind::Identifier, kind), span)),
-                None => {
+                Ok(Token { kind: TokenKind::Identifier, span, .. }) => Ok(Spanned::new(IdentifierOrUnderscore::Identifier(&self.input[span]), span)),
+                Ok(Token { kind: TokenKind::Underscore, span, .. }) => Ok(Spanned::new(IdentifierOrUnderscore::Underscore, span)),
+                Ok(Token { kind, span, line }) => Err(ParseError::new(ParseErrorKind::InvalidToken(TokenKind::Identifier, kind), span, line)),
+                Err(EndLineInformation { line, len }) => {
                     let kind = ParseErrorKind::ExpectedToken(TokenKind::Identifier);
-                    let span = Span::empty_from_start(self.input.len());
-                    Err(ParseError { kind, span })
+                    let span = Span::empty_from_start(len);
+                    Err(ParseError { kind, span, line })
                 }
             }
         })
@@ -373,6 +396,11 @@ impl<'t> Parser<'t> {
     }
 
     #[inline]
+    pub(crate) fn line(&self) -> usize {
+        self.token_stream.line()
+    }
+
+    #[inline]
     pub(crate) fn is_next(&mut self, kind: TokenKind) -> bool {
         self.token_stream.is_next(kind)
     }
@@ -386,10 +414,12 @@ impl<'t> Parser<'t> {
         self.token_stream.next_if_map(f)
     }
 
-    pub(crate) fn next_if_map_errored<T>(&mut self, f: impl FnOnce(Option<Token>) -> Result<T, ParseError>) -> Option<T> {
+    pub(crate) fn next_if_map_errored<T>(&mut self, f: impl FnOnce(Result<Token, EndLineInformation>) -> Result<T, ParseError>) -> Option<T> {
+        let line = self.line();
+        let len = self.input.len();
         let errors = &mut self.errors;
         self.token_stream.next_if_map(|token| {
-            match (f)(token) {
+            match (f)(token.ok_or(EndLineInformation { line, len })) {
                 Ok(t) => Ok(t),
                 Err(e) => {
                     errors.push(e);
@@ -412,16 +442,17 @@ impl<'t> Parser<'t> {
     pub(crate) fn next_if_kind_errored(&mut self, expected: TokenKind) -> Option<Token> {
         self.next_if_map_errored(|t| {
             match t {
-                Some(token) if token.kind == expected => Ok(token),
-                Some(token) => {
+                Ok(token) if token.kind == expected => Ok(token),
+                Ok(token) => {
                     let kind = ParseErrorKind::InvalidToken(expected, token.kind);
                     let span = token.span;
-                    Err(ParseError { kind, span })
+                    let line = token.line;
+                    Err(ParseError { kind, span, line })
                 },
-                None => {
+                Err(EndLineInformation { line, len }) => {
                     let kind = ParseErrorKind::ExpectedToken(expected);
-                    let span = Span::empty_from_start(self.input.len());
-                    Err(ParseError { kind, span })
+                    let span = Span::empty_from_start(len);
+                    Err(ParseError { kind, span, line })
                 }
             }
         })
@@ -431,26 +462,29 @@ impl<'t> Parser<'t> {
     pub(crate) fn advance_until_kind(&mut self, expected: TokenKind) -> Option<Token> {
         self.advance_map(|t| {
             match t {
-                Some(token) if token.kind == expected => Ok(token),
-                Some(token) => {
+                Ok(token) if token.kind == expected => Ok(token),
+                Ok(token) => {
                     let kind = ParseErrorKind::InvalidToken(expected, token.kind);
                     let span = token.span;
-                    Err(ParseError { kind, span })
+                    let line = token.line;
+                    Err(ParseError { kind, span, line })
                 },
-                None => {
+                Err(EndLineInformation { line, len }) => {
                     let kind = ParseErrorKind::ExpectedToken(expected);
-                    let span = Span::empty_from_start(self.input.len());
-                    Err(ParseError { kind, span })
+                    let span = Span::empty_from_start(len);
+                    Err(ParseError { kind, span, line })
                 }
             }
         })
     }
 
-    pub(crate) fn advance_map<T>(&mut self, f: impl Fn(Option<Token>) -> Result<T, ParseError>) -> Option<T> {
+    pub(crate) fn advance_map<T>(&mut self, f: impl Fn(Result<Token, EndLineInformation>) -> Result<T, ParseError>) -> Option<T> {
+        let line = self.line();
+        let len = self.input.len();
         let errors = &mut self.errors;
         while !self.token_stream.reached_eof() {
             let t_option = self.token_stream.next_if_map(|token| {
-                match (f)(token) {
+                match (f)(token.ok_or(EndLineInformation { line, len })) {
                     Ok(t) => Ok(t),
                     Err(e) => {
                         errors.push(e);

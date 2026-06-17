@@ -8,7 +8,7 @@ use ordered_float::OrderedFloat;
 use thin_vec::thin_vec;
 
 use crate::statement::{statement, block};
-use crate::Parser;
+use crate::{EndLineInformation, Parser};
 use crate::string::*;
 
 #[inline]
@@ -442,7 +442,7 @@ pub fn primary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
             if_expression(parser),
         _ => {
             let token = parser.next()?;
-            let error = ParseError::new(ParseErrorKind::UnexpectedToken(token.kind), token.span);
+            let error = ParseError::new(ParseErrorKind::UnexpectedToken(token.kind), token.span, token.line);
             parser.error(error);
             primary_expression(parser)
         }
@@ -453,16 +453,17 @@ pub fn primary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
 pub fn access_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let (access_expression, span) = parser.advance_map(|t| {
         match t {
-            Some(Token { kind: TokenKind::Identifier, span, .. }) =>
+            Ok(Token { kind: TokenKind::Identifier, span, .. }) =>
                 Ok((AccessExpression::Identifier(&parser.input[span]), span)),
-            Some(Token { kind: TokenKind::SelfKeyword, span, .. }) =>
+            Ok(Token { kind: TokenKind::SelfKeyword, span, .. }) =>
                 Ok((AccessExpression::SelfAccess, span)),
-            Some(Token { kind: found, span, .. }) => {
+            Ok(Token { kind: found, span, line }) => {
                 let kind = ParseErrorKind::InvalidToken(TokenKind::Identifier, found);
-                Err(ParseError::new(kind, span))
+                Err(ParseError::new(kind, span, line))
             },
-            None =>
-                Err(ParseError::new(ParseErrorKind::ExpectedToken(TokenKind::Identifier), Span::empty_from_start(parser.input.len()))),
+            Err(EndLineInformation { line, len }) => {
+                Err(ParseError::new(ParseErrorKind::ExpectedToken(TokenKind::Identifier), Span::empty_from_start(len), line))  
+            },
         }
     })?;
 
@@ -545,7 +546,7 @@ pub fn literal_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
             null_literal(parser),
         _ => {
             let token = parser.next()?;
-            let error = ParseError::new(ParseErrorKind::LiteralsExpected(Some(token.kind)), token.span);
+            let error = ParseError::new(ParseErrorKind::LiteralsExpected(Some(token.kind)), token.span, token.line);
             parser.error(error);
             literal_expression(parser)
         }
@@ -553,20 +554,20 @@ pub fn literal_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
 }
 
 #[inline]
-pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let (options, quote_start, span) = parser.next_if_map_errored(|t| {
+pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {    
+    let (options, quote_start, span, line) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::StringLiteral { options, quote_start, terminated, .. }, span, .. }) =>
+            Ok(Token { kind: TokenKind::StringLiteral { options, quote_start, terminated, ending_line }, span, line }) =>
                 if terminated {
-                    Ok((options, quote_start, span))
+                    Ok((options, quote_start, span, line))
                 } else {
-                    Err(ParseError::new(ParseErrorKind::UnterminatedString, span))
+                    Err(ParseError::new(ParseErrorKind::UnterminatedString(ending_line), span, line))
                 },
-            Some(Token { kind, span, .. }) =>
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::String, Some(kind)), span)),
-            None => {
-                let span = Span::empty_from_start(parser.input.len());
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::String, None), span))
+            Ok(Token { kind, span, line }) =>
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::String, Some(kind)), span, line)),
+            Err(EndLineInformation { line, len }) => {
+                let span = Span::empty_from_start(len);
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::String, None), span, line))
             }
         }
     })?;
@@ -581,7 +582,7 @@ pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let string_literal = if options.contains(StringOptions::RAWSTR) {
         StringLiteral::Borrowed(raw_str)
     } else {
-        UnescapedStringBuilder::new(raw_str, &mut parser.errors)
+        UnescapedStringBuilder::new(raw_str, line, &mut parser.errors)
             .collect()
     };
 
@@ -591,19 +592,19 @@ pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 
 #[inline]
 pub fn char_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let (escape_type, span) = parser.next_if_map_errored(|t| {
+    let (escape_type, span, line) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::CharacterLiteral { escape_type, terminated }, span, .. }) =>
+            Ok(Token { kind: TokenKind::CharacterLiteral { escape_type, terminated }, span, line }) =>
                 if terminated {
-                    Ok((escape_type, span))
+                    Ok((escape_type, span, line))
                 } else {
-                    Err(ParseError::new(ParseErrorKind::UnterminatedChar, span))
+                    Err(ParseError::new(ParseErrorKind::UnterminatedChar, span, line))
                 }
-            Some(Token { kind, span, .. }) =>
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Char, Some(kind)), span)),
-            None => {
-                let span = Span::empty_from_start(parser.input.len());
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Char, None), span))
+            Ok(Token { kind, span, line }) =>
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Char, Some(kind)), span, line)),
+            Err(EndLineInformation { line, len }) => {
+                let span = Span::empty_from_start(len);
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Char, None), span, line))
             }
         }
     })?;
@@ -623,27 +624,27 @@ pub fn char_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
         let kind = ExpressionKind::Literal(literal);
         Some(Expression { kind, span })
     } else {
-        parser.error(ParseError::new(ParseErrorKind::UnknownEscapeSequence, span));
+        parser.error(ParseError::new(ParseErrorKind::UnknownEscapeSequence, span, line));
         None
     }
 }
 
 #[inline]
 pub fn integer_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let (base, span) = parser.next_if_map_errored(|t| {
+    let (base, span, line) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::NumberLiteral { base, is_floating }, span, .. }) => {
+            Ok(Token { kind: TokenKind::NumberLiteral { base, is_floating }, span, line }) => {
                 if is_floating {
-                    Err(ParseError::new(ParseErrorKind::ExpectedIntegerFoundFloating, span))
+                    Err(ParseError::new(ParseErrorKind::ExpectedIntegerFoundFloating, span, line))
                 } else {
-                    Ok((base, span))
+                    Ok((base, span, line))
                 }
             },
-            Some(Token { kind, span, .. }) =>
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Integer, Some(kind)), span)),
-            None => {
-                let span = Span::empty_from_start(parser.input.len());
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Integer, None), span))
+            Ok(Token { kind, span, line }) =>
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Integer, Some(kind)), span, line)),
+            Err(EndLineInformation { line, len }) => {
+                let span = Span::empty_from_start(len);
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Integer, None), span, line))
             }
         }
     })?;
@@ -655,7 +656,7 @@ pub fn integer_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     };
 
     let literal = u128::from_str_radix(&parser.input[str_span], base as u32)
-        .inspect_err(|k| parser.error(ParseError::new(ParseErrorKind::IntError(*k.kind()), span)))
+        .inspect_err(|k| parser.error(ParseError::new(ParseErrorKind::IntError(*k.kind()), span, line)))
         .map(LiteralExpression::Integer)
         .ok()?;
 
@@ -666,21 +667,21 @@ pub fn integer_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 
 #[inline]
 pub fn float_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let span = parser.next_if_map_errored(|t| {
+    let (span, line) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, .. }, span, .. }) =>
-                Ok(span),
-            Some(Token { kind, span, .. }) =>
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Float, Some(kind)), span)),
-            None => {
-                let span = Span::empty_from_start(parser.input.len());
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Float, None), span))
+            Ok(Token { kind: TokenKind::NumberLiteral { base: BaseN::Decimal, .. }, span, line }) =>
+                Ok((span, line)),
+            Ok(Token { kind, span, line }) =>
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Float, Some(kind)), span, line)),
+            Err(EndLineInformation { line, len }) => {
+                let span = Span::empty_from_start(len);
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Float, None), span, line))
             }
         }
     })?;
 
     let literal = f64::from_str(&parser.input[span])
-        .inspect_err(|_| parser.error(ParseError::new(ParseErrorKind::FloatError, span)))
+        .inspect_err(|_| parser.error(ParseError::new(ParseErrorKind::FloatError, span, line)))
         .map(|f| LiteralExpression::Floating(OrderedFloat(f)))
         .ok()?;
 
@@ -693,15 +694,15 @@ pub fn float_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
 pub fn boolean_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let (bool_result, span) = parser.next_if_map_errored(|t| {
         match t {
-            Some(Token { kind: TokenKind::TrueKeyword, span, .. }) =>
+            Ok(Token { kind: TokenKind::TrueKeyword, span, .. }) =>
                 Ok((true, span)),
-            Some(Token { kind: TokenKind::FalseKeyword, span, .. }) =>
+            Ok(Token { kind: TokenKind::FalseKeyword, span, .. }) =>
                 Ok((false, span)),
-            Some(Token { kind, span, .. }) =>
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Boolean, Some(kind)), span)),
-            None => {
-                let span = Span::empty_from_start(parser.input.len());
-                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Boolean, None), span))
+            Ok(Token { kind, span, line }) =>
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Boolean, Some(kind)), span, line)),
+            Err(EndLineInformation { line, len }) => {
+                let span = Span::empty_from_start(len);
+                Err(ParseError::new(ParseErrorKind::LiteralExpected(LiteralKind::Boolean, None), span, line))
             }
         }
     })?;
