@@ -33,7 +33,7 @@ impl EndLineInformation {
     }
 
     #[inline]
-    pub const fn len(&self) -> usize {
+    pub const fn input_len(&self) -> usize {
         self.len
     }
 }
