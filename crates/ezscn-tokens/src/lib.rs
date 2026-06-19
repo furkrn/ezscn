@@ -215,6 +215,7 @@ pub enum TokenKind {
     ContinueKeyword,
     BreakKeyword,
     IsKeyword,
+    WhereKeyword,
 
     StringLiteral {
         options: StringOptions,
@@ -318,6 +319,7 @@ impl Display for TokenKind {
             Self::ContinueKeyword => "continue",
             Self::BreakKeyword => "break",
             Self::IsKeyword => "is",
+            Self::WhereKeyword => "where",
             Self::StringLiteral { .. } => "<STRING>",
             Self::NumberLiteral { .. } => "<NUMBER>",
             Self::CharacterLiteral { .. } => "<CHARACTER>",
