@@ -341,7 +341,6 @@ impl<'a> TokenStreamInner<'a> {
             "import" => TokenKind::ImportKeyword,
             "continue" => TokenKind::ContinueKeyword,
             "break" => TokenKind::BreakKeyword,
-            "is" => TokenKind::IsKeyword,
             "where" => TokenKind::WhereKeyword,
             "as" => TokenKind::AsKeyword,
             _ => return Err(str),
@@ -670,7 +669,7 @@ mod tests {
     #[test]
     pub fn keywords() {
         let str = r#"enum struct config const flags self func match
-            let if else while for in sig new return feature import continue break is where as"#;
+            let if else while for in sig new return feature import continue break where as"#;
         let mut stream = TokenStream::from(str);
 
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::EnumKeyword, span: Span::new(0, 4), line: 0 }));
@@ -694,9 +693,8 @@ mod tests {
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::ImportKeyword, span: Span::new(107, 113), line: 1 }));
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::ContinueKeyword, span: Span::new(114, 122), line: 1 }));
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::BreakKeyword, span: Span::new(123, 128), line: 1 }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::IsKeyword, span: Span::new(129, 131), line: 1 }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::WhereKeyword, span: Span::new(132, 137), line: 1 }));
-        assert_eq!(stream.next(), Some(Token { kind: TokenKind::AsKeyword, span: Span::new(138, 140), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::WhereKeyword, span: Span::new(129, 134), line: 1 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::AsKeyword, span: Span::new(135, 137), line: 1 }));
         assert_eq!(stream.next(), None);
     }
 

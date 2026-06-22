@@ -28,7 +28,6 @@ pub enum ExpressionKind<'s> {
     Logical(Box<Expression<'s>>, LogicalOperator, Box<Expression<'s>>),
     Equality(Box<Expression<'s>>, EqualityOperator, Box<Expression<'s>>),
     Comparision(Box<Expression<'s>>, ComparisionOperator, Box<Expression<'s>>),
-    InstanceOf(Box<Expression<'s>>, Path<'s>, Option<Identifier<'s>>),
     Binary(Box<Expression<'s>>, BinaryOperator, Box<Expression<'s>>),
     PostOp(Box<Expression<'s>>, PostOperator),
     Index(Box<Expression<'s>>, Box<Expression<'s>>),

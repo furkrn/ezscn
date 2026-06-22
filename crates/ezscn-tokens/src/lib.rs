@@ -9,7 +9,7 @@ trait Seal {}
 #[allow(private_bounds, reason = "This is a sealed trait which would be only used for SpanImpl.")]
 pub trait SpanImpl: Seal + Eq + PartialEq {
     type Item: Eq + PartialEq;
-    
+
     fn new(start: Self::Item, end: Self::Item) -> Self;
     fn empty_from_start(start: Self::Item) -> Self;
     fn new_spanned(start_span: Self, end_span: Self) -> Self;
@@ -17,7 +17,7 @@ pub trait SpanImpl: Seal + Eq + PartialEq {
     fn end(&self) -> Self::Item;
     fn shift_start_right(self, l: Self::Item) -> Self;
     fn shift_end_left(self, r: Self::Item) -> Self;
-    
+
     #[inline]
     fn is_empty(&self) -> bool {
         self.start() == self.end()
@@ -214,7 +214,6 @@ pub enum TokenKind {
     ImportKeyword,
     ContinueKeyword,
     BreakKeyword,
-    IsKeyword,
     WhereKeyword,
     AsKeyword,
 
@@ -319,7 +318,6 @@ impl Display for TokenKind {
             Self::ImportKeyword => "import",
             Self::ContinueKeyword => "continue",
             Self::BreakKeyword => "break",
-            Self::IsKeyword => "is",
             Self::WhereKeyword => "where",
             Self::AsKeyword => "as",
             Self::StringLiteral { .. } => "<STRING>",
