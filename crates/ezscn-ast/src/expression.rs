@@ -33,7 +33,7 @@ pub enum ExpressionKind<'s> {
     Index(Box<Expression<'s>>, Box<Expression<'s>>),
     Tuple(ThinVec<Expression<'s>>),
     Match(Box<Expression<'s>>, ThinVec<MatchArm<'s>>),
-    ShortCurcuit(Box<Expression<'s>>),
+    ShortCircuit(Box<Expression<'s>>),
     If(Box<IfArm<'s>>, ThinVec<IfArm<'s>>, Option<Block<'s>>),
 }
 

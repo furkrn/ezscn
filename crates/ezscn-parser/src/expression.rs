@@ -304,7 +304,7 @@ pub fn postfix_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
             Some(TokenKind::PlusPlus | TokenKind::MinusMinus) =>
                 post_op_expression(parser, left),
             Some(TokenKind::QuestionMark) =>
-                short_curcuit_expression(parser, left),
+                short_circuit_expression(parser, left),
             _ => break left
         };
     }
@@ -377,11 +377,11 @@ fn post_op_span(parser: &mut Parser<'_>) -> Option<(PostOperator, Span)> {
 }
 
 #[inline]
-pub fn short_curcuit_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
+pub fn short_circuit_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
     let mut left = left.or_else(|| primary_expression(parser))?;
     while let Some(mark) = parser.next_if_kind(TokenKind::QuestionMark) {
         let span = Span::new_spanned(left.span, mark.span);
-        let kind = ExpressionKind::ShortCurcuit(Box::new(left));
+        let kind = ExpressionKind::ShortCircuit(Box::new(left));
         left = Expression { kind, span }
     }
 
@@ -529,7 +529,7 @@ pub fn literal_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
 }
 
 #[inline]
-pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {    
+pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let (options, quote_start, span, line) = parser.next_if_map_errored(|t| {
         match t {
             Ok(Token { kind: TokenKind::StringLiteral { options, quote_start, terminated, ending_line }, span, line }) =>
