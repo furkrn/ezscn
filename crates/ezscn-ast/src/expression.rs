@@ -4,7 +4,7 @@ use ezscn_tokens::Span;
 use thin_vec::ThinVec;
 use ordered_float::OrderedFloat;
 
-use crate::{Block, Identifier, Path};
+use crate::{Block, Identifier, Path, ReturnTypes};
 
 pub type StringLiteral<'s> = Cow<'s, str>;
 
@@ -35,6 +35,7 @@ pub enum ExpressionKind<'s> {
     Match(Box<Expression<'s>>, ThinVec<MatchArm<'s>>),
     ShortCircuit(Box<Expression<'s>>),
     If(Box<IfArm<'s>>, ThinVec<IfArm<'s>>, Option<Block<'s>>),
+    Closure(ThinVec<ClosureParam<'s>>, Block<'s>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -140,4 +141,11 @@ pub struct MatchArm<'e> {
 pub struct IfArm<'e> {
     pub clause: Expression<'e>,
     pub block: Block<'e>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct ClosureParam<'t> {
+    pub identifier: Identifier<'t>,
+    pub return_type: Option<ReturnTypes<'t>>,
+    pub span: Span,
 }

@@ -188,6 +188,7 @@ pub enum TokenKind {
     QuestionMark,
     Underscore,
     Tag,
+    Dollar,
     FatArrow,
 
     EnumKeyword,
@@ -293,6 +294,7 @@ impl Display for TokenKind {
             Self::QuestionMark => "?",
             Self::Underscore => "_",
             Self::Tag => "#",
+            Self::Dollar => "$",
             Self::FatArrow => "=>",
             Self::EnumKeyword => "enum",
             Self::StructKeyword => "struct",

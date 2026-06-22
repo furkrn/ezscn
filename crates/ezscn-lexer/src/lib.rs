@@ -182,7 +182,7 @@ impl<'a> TokenStreamInner<'a> {
 
                     (TokenKind::Identifier, Some(range.end))
                 } else {
-                    (TokenKind::Unknown, None)
+                    (TokenKind::Dollar, None)
                 }
             }
             '\\' => (TokenKind::Backslash, None),
@@ -609,7 +609,7 @@ mod tests {
 
     #[test]
     pub fn special_care_char_test() {
-        let str = "< << <<= <= > >> >>= >= = == ! != & &= && | |= || ~ ~= * *= / /= % %= =>";
+        let str = "< << <<= <= > >> >>= >= = == ! != & &= && | |= || ~ ~= * *= / /= % %= => $";
         let mut stream = TokenStream::from(str);
 
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::LessThan, span: Span::new(0, 1), line: 0 }));
@@ -639,6 +639,7 @@ mod tests {
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::Percent, span: Span::new(65, 66), line: 0 }));
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::PercentEquals, span: Span::new(67, 69), line: 0 }));
         assert_eq!(stream.next(), Some(Token { kind: TokenKind::FatArrow, span: Span::new(70, 72), line: 0 }));
+        assert_eq!(stream.next(), Some(Token { kind: TokenKind::Dollar, span: Span::new(73, 74), line: 0 }));
         assert_eq!(stream.next(), None);
     }
 

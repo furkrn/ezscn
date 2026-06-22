@@ -415,6 +415,8 @@ pub fn primary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
             match_expression(parser),
         Some(Token { kind: TokenKind::IfKeyword, .. }) =>
             if_expression(parser),
+        Some(Token { kind: TokenKind::Dollar, .. }) => 
+            closure_expression(parser),
         _ => {
             let token = parser.next()?;
             let error = ParseError::new(ParseErrorKind::UnexpectedToken(token.kind), token.span, token.line);
@@ -767,6 +769,38 @@ pub fn if_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let kind = ExpressionKind::If(Box::new(if_arm), else_if_arms, else_arm);
 
     Some(Expression { kind, span })
+}
+
+#[inline]
+pub fn closure_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
+    let dollar_token = parser.advance_until_kind(TokenKind::Dollar)?;
+    parser.advance_until_kind(TokenKind::ParanthesisLeft)?;
+    let param_list = parser.comma_seperated_map(TokenKind::ParanthesisRight, closure_param)?;
+    parser.advance_until_kind(TokenKind::ParanthesisRight)?;
+    parser.advance_until_kind(TokenKind::FatArrow)?;
+    let block = block(parser)?;
+
+    let span = Span::new_spanned(dollar_token.span, block.span);
+    let kind = ExpressionKind::Closure(param_list, block);
+
+    Some(Expression { kind, span })
+}
+
+#[inline]
+fn closure_param<'t>(parser: &mut Parser<'t>) -> Option<ClosureParam<'t>> {
+    let identifier_token = parser.advance_until_identifier_spanned()?;
+    let identifier = identifier_token.data;
+    let mut span = identifier_token.span;
+    let return_type = if parser.next_if_kind(TokenKind::Colon).is_some() {
+        let return_type = parser.return_type()?;
+        span = Span::new_spanned(span, return_type.span);
+        
+        Some(return_type)
+    } else {
+        None
+    };
+
+    Some(ClosureParam { identifier, return_type, span })
 }
 
 #[cfg(test)]
