@@ -452,24 +452,29 @@ pub fn access_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> 
 #[inline]
 pub fn new_init_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let new_kw = parser.next_if_kind_errored(TokenKind::NewKeyword)?;
-    let identifier = parser.advance_until_path()?;
+    let return_type = parser.return_type()?;
     let (inits, end_span) = if parser.next_if_kind(TokenKind::CurlyBracketLeft).is_some() {
-        let inits = parser.comma_seperated_map(TokenKind::CurlyBracketRight, new_init_member)?;
+        let inits = parser.comma_seperated_map(TokenKind::CurlyBracketRight, new_field_member)?;
         let cbr = parser.advance_until_kind(TokenKind::CurlyBracketRight)?;
 
-        (inits, cbr.span)
+        (NewExprType::Field(inits), cbr.span)
+    } else if parser.next_if_kind(TokenKind::ParanthesisLeft).is_some() {
+        let inits = parser.comma_seperated_map(TokenKind::ParanthesisRight, expression)?;
+        let pr = parser.advance_until_kind(TokenKind::ParanthesisRight)?;
+
+        (NewExprType::Tuple(inits), pr.span)
     } else {
-        (thin_vec![], identifier.span)
+        (NewExprType::Zero, return_type.span)
     };
 
     let span = Span::new_spanned(new_kw.span, end_span);
-    let kind = ExpressionKind::New(identifier, inits);
+    let kind = ExpressionKind::New(return_type, inits);
 
     Some(Expression { kind, span })
 }
 
 #[inline]
-fn new_init_member<'t>(parser: &mut Parser<'t>) -> Option<StructInitialization<'t>> {
+fn new_field_member<'t>(parser: &mut Parser<'t>) -> Option<FieldInitialization<'t>> {
     let identifier_token = parser.advance_until_kind(TokenKind::Identifier)?;
     let identifier = &parser.input[identifier_token.span];
     let expression = if parser.is_next(TokenKind::Equals) {
@@ -481,7 +486,7 @@ fn new_init_member<'t>(parser: &mut Parser<'t>) -> Option<StructInitialization<'
         Expression { kind, span }
     };
 
-    Some(StructInitialization { identifier, expression })
+    Some(FieldInitialization { identifier, expression })
 }
 
 #[inline]
