@@ -75,8 +75,27 @@ impl<'t> Parser<'t> {
             TokenKind::SigKeyword => self.sig_item(),
             TokenKind::ImportKeyword => self.import_item(),
             TokenKind::FeatureKeyword => self.feature_item(),
+            TokenKind::PubKeyword => self.modifier_item(),
             _ => self.statement_item()
         }
+    }
+
+    #[inline]
+    pub fn modifier_item(&mut self) -> Option<Item<'t>> {
+        let vis = self.modifier()?;
+        let item = self.item()?;
+
+        let span = Span::new_spanned(vis.span, item.span);
+        let kind = ItemKind::Visible(vis.data, Box::new(item));
+
+        Some(Item { kind, span })
+    }
+
+    #[inline]
+    fn modifier(&mut self) -> Option<Spanned<VisibilityModifiers>> {
+        let t = self.advance_until_kind(TokenKind::PubKeyword)?;
+
+        Some(Spanned::new(VisibilityModifiers::Public, t.span))
     }
 
     #[inline]

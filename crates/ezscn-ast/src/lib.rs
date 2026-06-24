@@ -32,6 +32,7 @@ pub enum ItemKind<'i> {
     Import(Path<'i>),
     Feature(FeatureItem<'i>),
     Statement(Statement<'i>),
+    Visible(VisibilityModifiers, Box<Item<'i>>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -130,4 +131,9 @@ pub struct FeatureItem<'i> {
 pub struct Path<'i> {
     pub identifiers: ThinVec<Identifier<'i>>,
     pub span: Span,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum VisibilityModifiers {
+    Public,
 }
