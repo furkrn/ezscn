@@ -76,6 +76,7 @@ impl<'t> Parser<'t> {
             TokenKind::ImportKeyword => self.import_item(),
             TokenKind::FeatureKeyword => self.feature_item(),
             TokenKind::PubKeyword => self.modifier_item(),
+            TokenKind::Tag => self.attribute_collection_item(),
             _ => self.statement_item()
         }
     }
@@ -96,6 +97,31 @@ impl<'t> Parser<'t> {
         let t = self.advance_until_kind(TokenKind::PubKeyword)?;
 
         Some(Spanned::new(VisibilityModifiers::Public, t.span))
+    }
+
+    #[inline]
+    pub fn attribute_collection_item(&mut self) -> Option<Item<'t>> {
+        let first_t_token = self.advance_until_kind(TokenKind::Tag)?;
+        let mut current = first_t_token;
+        let mut attributes = thin_vec![];
+        loop {
+            let peek = self.peek()?;
+            if peek.kind == TokenKind::Tag {
+                current = self.next()?;
+            } else if peek.kind == TokenKind::Comma {
+                self.next()?;
+            } else if peek.line == current.line {
+                attributes.push(self.advance_until_path()?)
+            } else {
+                break
+            }
+        }
+
+        let item = self.item()?;
+        let span = Span::new_spanned(first_t_token.span, item.span);
+        let kind = ItemKind::AttributeCollectedItem(attributes, Box::new(item));
+
+        Some(Item { kind, span })
     }
 
     #[inline]

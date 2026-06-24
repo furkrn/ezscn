@@ -33,6 +33,7 @@ pub enum ItemKind<'i> {
     Feature(FeatureItem<'i>),
     Statement(Statement<'i>),
     Visible(VisibilityModifiers, Box<Item<'i>>),
+    AttributeCollectedItem(ThinVec<Path<'i>>, Box<Item<'i>>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
