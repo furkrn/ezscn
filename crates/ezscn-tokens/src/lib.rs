@@ -217,6 +217,7 @@ pub enum TokenKind {
     BreakKeyword,
     WhereKeyword,
     AsKeyword,
+    PubKeyword,
 
     StringLiteral {
         options: StringOptions,
@@ -322,6 +323,7 @@ impl Display for TokenKind {
             Self::BreakKeyword => "break",
             Self::WhereKeyword => "where",
             Self::AsKeyword => "as",
+            Self::PubKeyword => "pub",
             Self::StringLiteral { .. } => "<STRING>",
             Self::NumberLiteral { .. } => "<NUMBER>",
             Self::CharacterLiteral { .. } => "<CHARACTER>",
