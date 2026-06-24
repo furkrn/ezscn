@@ -287,29 +287,42 @@ impl<'t> Parser<'t> {
     }
 
     #[inline]
-    pub fn return_type(&mut self) -> Option<ReturnTypes<'t>> {
-        let primary_return_type = if self.next_if_kind(TokenKind::ParanthesisLeft).is_some() {
+    pub fn return_type(&mut self) -> Option<ReturnType<'t>> {
+        let mut return_type = if let Some(pl) = self.next_if_kind(TokenKind::ParanthesisLeft) {
             let types = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::return_type)?;
-            self.advance_until_kind(TokenKind::ParanthesisRight)?;
+            let pr = self.advance_until_kind(TokenKind::ParanthesisRight)?;
+            let span = Span::new_spanned(pl.span, pr.span);
+            let kind = ReturnTypeKind::Tuple(types);
 
-            ReturnTypes::Tuple(types)
+            ReturnType { kind, span }
         } else {
-            ReturnTypes::Type(self.advance_until_path()?)
+            let type_name = self.advance_until_path()?;
+            let span = type_name.span;
+            let kind = ReturnTypeKind::Type(type_name);
+
+            ReturnType { kind, span }
         };
 
-        let post_return_type = if self.next_if_kind(TokenKind::SquareBracketLeft).is_some() {
-            self.advance_until_kind(TokenKind::SquareBracketRight)?;
+        loop {
+            return_type = match self.next_if(|t| matches!(t.kind, TokenKind::SquareBracketLeft | TokenKind::QuestionMark)) {
+                Some(Token { kind: TokenKind::SquareBracketLeft, .. }) => {
+                    let sbr = self.advance_until_kind(TokenKind::SquareBracketRight)?;
+                    let span = Span::new_spanned(return_type.span, sbr.span);
+                    let kind = ReturnTypeKind::Array(Box::new(return_type));
 
-            ReturnTypes::Array(Box::new(primary_return_type))
-        } else {
-            primary_return_type
-        };
+                    ReturnType { kind, span }
+                },
+                Some(Token { kind: TokenKind::QuestionMark, span, .. }) => {
+                    let span = Span::new_spanned(return_type.span, span);
+                    let kind = ReturnTypeKind::Nullable(Box::new(return_type));
 
-        if self.next_if_kind(TokenKind::QuestionMark).is_some() {
-            Some(ReturnTypes::Nullable(Box::new(post_return_type)))
-        } else {
-            Some(post_return_type)
+                    ReturnType { kind, span }
+                }
+                _ => break
+            };
         }
+
+        Some(return_type)
     }
 
     #[inline]

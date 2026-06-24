@@ -415,7 +415,7 @@ pub fn primary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
             match_expression(parser),
         Some(Token { kind: TokenKind::IfKeyword, .. }) =>
             if_expression(parser),
-        Some(Token { kind: TokenKind::Dollar, .. }) => 
+        Some(Token { kind: TokenKind::Dollar, .. }) =>
             closure_expression(parser),
         _ => {
             let token = parser.next()?;
@@ -439,7 +439,7 @@ pub fn access_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> 
                 Err(ParseError::new(kind, span, line))
             },
             Err(EndLineInformation { line, len }) => {
-                Err(ParseError::new(ParseErrorKind::ExpectedToken(TokenKind::Identifier), Span::empty_from_start(len), line))  
+                Err(ParseError::new(ParseErrorKind::ExpectedToken(TokenKind::Identifier), Span::empty_from_start(len), line))
             },
         }
     })?;
@@ -799,7 +799,7 @@ fn closure_param<'t>(parser: &mut Parser<'t>) -> Option<ClosureParam<'t>> {
     let return_type = if parser.next_if_kind(TokenKind::Colon).is_some() {
         let return_type = parser.return_type()?;
         span = Span::new_spanned(span, return_type.span);
-        
+
         Some(return_type)
     } else {
         None

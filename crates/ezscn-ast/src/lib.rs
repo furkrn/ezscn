@@ -39,7 +39,7 @@ pub struct EnumItem<'i> {
     pub identifier: Identifier<'i>,
     pub items: ThinVec<EnumMember<'i>>,
     pub flags: bool,
-    pub derived_type: Option<ReturnTypes<'i>>,
+    pub derived_type: Option<ReturnType<'i>>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -57,22 +57,28 @@ pub struct StructItem<'i> {
 #[derive(Debug, Eq, PartialEq)]
 pub enum StructMemberDefinition<'i> {
     Field(ThinVec<Field<'i>>),
-    Tuple(ThinVec<ReturnTypes<'i>>),
+    Tuple(ThinVec<ReturnType<'i>>),
     Zero,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Field<'i> {
     pub identifier: Identifier<'i>,
-    pub return_type: ReturnTypes<'i>,
+    pub return_type: ReturnType<'i>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum ReturnTypes<'i> {
+pub struct ReturnType<'t> {
+    pub kind: ReturnTypeKind<'t>,
+    pub span: Span,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ReturnTypeKind<'i> {
     Type(Path<'i>),
-    Tuple(ThinVec<ReturnTypes<'i>>),
-    Array(Box<ReturnTypes<'i>>),
-    Nullable(Box<ReturnTypes<'i>>),
+    Tuple(ThinVec<ReturnType<'i>>),
+    Array(Box<ReturnType<'i>>),
+    Nullable(Box<ReturnType<'i>>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -89,7 +95,7 @@ pub struct ConfigMember<'i> {
 #[derive(Debug, Eq, PartialEq)]
 pub struct ConstItem<'i> {
     pub identifier: Identifier<'i>,
-    pub return_type: ReturnTypes<'i>,
+    pub return_type: ReturnType<'i>,
     pub eq: Expression<'i>,
 }
 
@@ -98,18 +104,18 @@ pub struct FuncItem<'i> {
     pub identifier: Identifier<'i>,
     pub params: ThinVec<FuncParam<'i>>,
     pub block: Option<Block<'i>>,
-    pub return_type: Option<ReturnTypes<'i>>,
+    pub return_type: Option<ReturnType<'i>>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct FuncParam<'i> {
     pub identifier: Identifier<'i>,
-    pub return_type: ReturnTypes<'i>,
+    pub return_type: ReturnType<'i>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SigItem<'i> {
-    pub sig_type: Option<ReturnTypes<'i>>,
+    pub sig_type: Option<ReturnType<'i>>,
     pub identifier: Identifier<'i>
 }
 

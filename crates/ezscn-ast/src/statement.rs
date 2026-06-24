@@ -1,7 +1,7 @@
 use ezscn_tokens::Span;
 use thin_vec::ThinVec;
 
-use crate::{Identifier, Block, ReturnTypes};
+use crate::{Identifier, Block, ReturnType};
 use crate::expression::Expression;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -15,7 +15,7 @@ pub enum StatementKind<'e> {
     Empty,
     Expression(Expression<'e>, bool),
     Return(Option<Expression<'e>>),
-    Let(ThinVec<IdentifierOrUnderscore<'e>>, Option<ReturnTypes<'e>>, Option<Expression<'e>>),
+    Let(ThinVec<IdentifierOrUnderscore<'e>>, Option<ReturnType<'e>>, Option<Expression<'e>>),
     ForLoop(ForLoopStatement<'e>),
     WhileLoop(WhileLoopStatement<'e>),
     Break,
