@@ -330,10 +330,10 @@ pub fn call_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>
 pub fn index_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
     let mut left = left.or_else(|| primary_expression(parser))?;
     while parser.next_if_kind(TokenKind::SquareBracketLeft).is_some() {
-        let expr = expression(parser)?;
+        let exprs = parser.comma_seperated_map(TokenKind::SquareBracketRight, expression)?;
         let sbr_token = parser.advance_until_kind(TokenKind::SquareBracketRight)?;
         let span = Span::new_spanned(left.span, sbr_token.span);
-        let kind = ExpressionKind::Index(Box::new(left), Box::new(expr));
+        let kind = ExpressionKind::Index(Box::new(left), exprs);
         left = Expression { kind, span }
     }
 

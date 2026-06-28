@@ -30,7 +30,7 @@ pub enum ExpressionKind<'s> {
     Comparision(Box<Expression<'s>>, ComparisionOperator, Box<Expression<'s>>),
     Binary(Box<Expression<'s>>, BinaryOperator, Box<Expression<'s>>),
     PostOp(Box<Expression<'s>>, PostOperator),
-    Index(Box<Expression<'s>>, Box<Expression<'s>>),
+    Index(Box<Expression<'s>>, ThinVec<Expression<'s>>),
     Tuple(ThinVec<Expression<'s>>),
     Match(Box<Expression<'s>>, ThinVec<MatchArm<'s>>),
     ShortCircuit(Box<Expression<'s>>),
