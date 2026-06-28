@@ -320,9 +320,9 @@ impl<'t> Parser<'t> {
     #[inline]
     pub fn sig_item(&mut self) -> Option<Item<'t>> {
         let sig_kw = self.advance_until_kind(TokenKind::SigKeyword)?;
-        let sig_type = if self.next_if(|t| t.kind == TokenKind::LessThan).is_some() {
+        let sig_type = if self.next_if(|t| t.kind == TokenKind::SquareBracketLeft).is_some() {
             let return_type = self.return_type()?;
-            self.advance_until_kind(TokenKind::GreaterThan)?;
+            self.advance_until_kind(TokenKind::SquareBracketRight)?;
 
             Some(return_type)
         } else {
