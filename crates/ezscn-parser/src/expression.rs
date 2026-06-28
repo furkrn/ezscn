@@ -305,6 +305,8 @@ pub fn postfix_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
                 post_op_expression(parser, left),
             Some(TokenKind::QuestionMark) =>
                 short_circuit_expression(parser, left),
+            Some(TokenKind::ColonColon) => 
+                path_expression(parser, left),
             _ => break left
         };
     }
@@ -382,6 +384,19 @@ pub fn short_circuit_expression<'t>(parser: &mut Parser<'t>, left: Option<Expres
     while let Some(mark) = parser.next_if_kind(TokenKind::QuestionMark) {
         let span = Span::new_spanned(left.span, mark.span);
         let kind = ExpressionKind::ShortCircuit(Box::new(left));
+        left = Expression { kind, span }
+    }
+
+    Some(left)
+}
+
+#[inline]
+pub fn path_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
+    let mut left = left.or_else(|| primary_expression(parser))?;
+    while parser.next_if_kind(TokenKind::ColonColon).is_some() {
+        let expr = expression(parser)?;
+        let span = Span::new_spanned(left.span, expr.span);
+        let kind = ExpressionKind::Path(Box::new(left), Box::new(expr));
         left = Expression { kind, span }
     }
 

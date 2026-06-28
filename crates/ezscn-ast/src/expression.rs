@@ -36,6 +36,7 @@ pub enum ExpressionKind<'s> {
     ShortCircuit(Box<Expression<'s>>),
     If(Box<IfArm<'s>>, ThinVec<IfArm<'s>>, Option<Block<'s>>),
     Closure(ThinVec<ClosureParam<'s>>, Block<'s>),
+    Path(Box<Expression<'s>>, Box<Expression<'s>>),
 }
 
 #[derive(Debug, Eq, PartialEq)]
