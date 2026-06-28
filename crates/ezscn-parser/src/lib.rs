@@ -247,9 +247,14 @@ impl<'t> Parser<'t> {
     pub fn import_item(&mut self) -> Option<Item<'t>> {
         let import_kw = self.advance_until_kind(TokenKind::ImportKeyword)?;
         let path = self.advance_until_path()?;
+        let alias = if self.next_if_kind(TokenKind::AsKeyword).is_some() {
+            Some(self.advance_until_identifier()?)
+        } else {
+            None
+        };
         let semicolon = self.advance_until_kind(TokenKind::Semicolon)?;
         let span = Span::new_spanned(import_kw.span, semicolon.span);
-        let kind = ItemKind::Import(path);
+        let kind = ItemKind::Import(ImportItem { path, alias });
 
         Some(Item { kind, span })
     }

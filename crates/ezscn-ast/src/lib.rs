@@ -31,7 +31,7 @@ pub enum ItemKind<'i> {
     Const(ConstItem<'i>),
     Func(FuncItem<'i>),
     Sig(SigItem<'i>),
-    Import(Path<'i>),
+    Import(ImportItem<'i>),
     Feature(FeatureItem<'i>),
     Statement(Statement<'i>),
     Visible(VisibilityModifiers, Box<Item<'i>>),
@@ -126,6 +126,12 @@ pub struct FuncParam<'i> {
 pub struct SigItem<'i> {
     pub sig_type: Option<ReturnType<'i>>,
     pub identifier: Identifier<'i>
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct ImportItem<'i> {
+    pub path: Path<'i>,
+    pub alias: Option<Identifier<'i>>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
