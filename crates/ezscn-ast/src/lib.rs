@@ -14,6 +14,8 @@ pub mod statement;
 pub type Ast<'i> = ThinVec<Item<'i>>;
 pub type Identifier<'s> = &'s str;
 pub type Block<'s> = Spanned<ThinVec<Statement<'s>>>;
+pub type Generics<'s> = Spanned<ThinVec<GenericParam<'s>>>;
+pub type WhereClause<'s> = Spanned<ThinVec<GenericConstrait<'s>>>;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Item<'i> {
@@ -53,6 +55,8 @@ pub struct EnumMember<'i> {
 #[derive(Debug, Eq, PartialEq)]
 pub struct StructItem<'i> {
     pub identifier: Identifier<'i>,
+    pub generics: Option<Generics<'i>>,
+    pub where_clause: Option<WhereClause<'i>>,
     pub members: StructMemberDefinition<'i>,
 }
 
@@ -78,6 +82,7 @@ pub struct ReturnType<'t> {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ReturnTypeKind<'i> {
     Type(Path<'i>),
+    Generic(Box<ReturnType<'i>>, ThinVec<ReturnType<'i>>),
     Tuple(ThinVec<ReturnType<'i>>),
     Array(Box<ReturnType<'i>>),
     Nullable(Box<ReturnType<'i>>),
@@ -104,6 +109,8 @@ pub struct ConstItem<'i> {
 #[derive(Debug, Eq, PartialEq)]
 pub struct FuncItem<'i> {
     pub identifier: Identifier<'i>,
+    pub generics: Option<Generics<'i>>,
+    pub where_clause: Option<WhereClause<'i>>,
     pub params: ThinVec<FuncParam<'i>>,
     pub block: Option<Block<'i>>,
     pub return_type: Option<ReturnType<'i>>,
@@ -124,6 +131,8 @@ pub struct SigItem<'i> {
 #[derive(Debug, Eq, PartialEq)]
 pub struct FeatureItem<'i> {
     pub feature_ident: Path<'i>,
+    pub generics: Option<Generics<'i>>,
+    pub where_clause: Option<WhereClause<'i>>,
     pub implementation: Option<Path<'i>>,
     pub items: ThinVec<Item<'i>>,
 }
@@ -137,4 +146,18 @@ pub struct Path<'i> {
 #[derive(Debug, Eq, PartialEq)]
 pub enum VisibilityModifiers {
     Public,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct GenericParam<'s> {
+    pub identifier: Identifier<'s>,
+    pub constrait: Option<ThinVec<ReturnType<'s>>>,
+    pub span: Span,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct GenericConstrait<'s> {
+    pub identifier: Identifier<'s>,
+    pub constraits: ThinVec<ReturnType<'s>>,
+    pub span: Span,
 }

@@ -38,6 +38,9 @@ impl EndLineInformation {
     }
 }
 
+#[derive(Default, Debug)]
+pub struct ParseErrored;
+
 #[derive(Debug)]
 pub struct Parser<'t> {
     pub(crate) token_stream: TokenStream<'t>,
@@ -160,6 +163,12 @@ impl<'t> Parser<'t> {
     pub fn struct_item(&mut self) -> Option<Item<'t>> {
         let struct_kw = self.advance_until_kind(TokenKind::StructKeyword)?;
         let identifier_token = self.advance_until_identifier_spanned()?;
+        let generics = self.generics()
+            .ok()?;
+
+        let where_clause = self.where_clause()
+            .ok()?;
+
         let token = self.advance_map(|token| {
             match token {
                 Ok(token) if matches!(token.kind, TokenKind::Semicolon | TokenKind::ParanthesisLeft | TokenKind::CurlyBracketLeft) =>
@@ -190,7 +199,7 @@ impl<'t> Parser<'t> {
         };
 
         let span = Span::new_spanned(struct_kw.span, end_token.span);
-        let kind = ItemKind::Struct(StructItem { identifier, members });
+        let kind = ItemKind::Struct(StructItem { identifier, members, generics, where_clause });
 
         Some(Item { kind, span })
     }
@@ -208,11 +217,17 @@ impl<'t> Parser<'t> {
     pub fn feature_item(&mut self) -> Option<Item<'t>> {
         let feature_kw = self.advance_until_kind(TokenKind::FeatureKeyword)?;
         let feature_ident = self.advance_until_path()?;
+        let generics = self.generics()
+            .ok()?;
+
         let implementation = if self.next_if_kind(TokenKind::ForKeyword).is_some() {
             Some(self.advance_until_path()?)
         } else {
             None
         };
+
+        let where_clause = self.where_clause()
+            .ok()?;
 
         self.advance_until_kind(TokenKind::CurlyBracketLeft)?;
         let mut items = thin_vec![];
@@ -222,7 +237,7 @@ impl<'t> Parser<'t> {
 
         let cbr = self.advance_until_kind(TokenKind::CurlyBracketRight)?;
         let span = Span::new_spanned(feature_kw.span, cbr.span);
-        let kind = ItemKind::Feature(FeatureItem { feature_ident, implementation, items });
+        let kind = ItemKind::Feature(FeatureItem { feature_ident, implementation, items, generics, where_clause });
 
         Some(Item { kind, span })
     }
@@ -263,9 +278,15 @@ impl<'t> Parser<'t> {
     pub fn func_item(&mut self) -> Option<Item<'t>> {
         let func_kw = self.advance_until_kind(TokenKind::FuncKeyword)?;
         let identifier = self.advance_until_identifier()?;
+        let generics = self.generics()
+            .ok()?;
+
         self.advance_until_kind(TokenKind::ParanthesisLeft)?;
         let params = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::func_param)?;
         self.advance_until_kind(TokenKind::ParanthesisRight)?;
+        let where_clause = self.where_clause()
+            .ok()?;
+
         let return_type = if self.next_if_kind(TokenKind::Colon).is_some() {
             Some(self.return_type()?)
         } else {
@@ -282,7 +303,7 @@ impl<'t> Parser<'t> {
         };
 
         let span = Span::new_spanned(func_kw.span, end_span);
-        let kind = ItemKind::Func(FuncItem { identifier, params, block, return_type });
+        let kind = ItemKind::Func(FuncItem { identifier, params, block, return_type, where_clause, generics });
 
         Some(Item { kind, span })
     }
@@ -332,6 +353,99 @@ impl<'t> Parser<'t> {
     }
 
     #[inline]
+    pub fn generics(&mut self) -> Result<Option<Generics<'t>>, ParseErrored> {
+        let Some(sbl) = self.next_if_kind(TokenKind::SquareBracketLeft) else {
+            return Ok(None);
+        };
+
+        let generic_parameters = self.comma_seperated_map(TokenKind::SquareBracketRight, Self::generic_param)
+            .ok_or(ParseErrored)?;
+
+        let sbr = self.advance_until_kind(TokenKind::SquareBracketRight)
+            .ok_or(ParseErrored)?;
+
+        let span = Span::new_spanned(sbl.span, sbr.span);
+
+        Ok(Some(Generics::new(generic_parameters, span)))
+    }
+
+    #[inline]
+    fn generic_param(&mut self) -> Option<GenericParam<'t>> {
+        let identifier_spanned = self.advance_until_identifier_spanned()?;
+        let identifier = identifier_spanned.data;
+        let mut last_span = identifier_spanned.span;
+        let constrait = if self.next_if_kind(TokenKind::Colon).is_some() {
+            let mut constrait = thin_vec![];
+            loop {
+                let return_type = self.return_type()?;
+                last_span = return_type.span;
+                constrait.push(return_type);
+
+                if !self.next_if_kind(TokenKind::Plus).is_none() {
+                    break
+                }
+            }
+
+            Some(constrait)
+        } else {
+            None
+        };
+
+        let span = Span::new_spanned(identifier_spanned.span, last_span);
+
+        Some(GenericParam { identifier, constrait, span })
+    }
+
+    #[inline]
+    pub fn where_clause(&mut self) -> Result<Option<WhereClause<'t>>, ParseErrored> {
+        let Some(where_clause) = self.next_if_kind(TokenKind::WhereKeyword) else {
+            return Ok(None);
+        };
+
+        let mut generics = thin_vec![];
+        let mut last_span = where_clause.span;
+        loop {
+            if !self.is_next(TokenKind::Identifier) {
+                break
+            }
+
+            let generic_constrait = self.generic_constrait()
+                .ok_or(ParseErrored)?;
+
+            if let Some(comma) = self.next_if_kind(TokenKind::Comma) {
+                last_span = comma.span;
+            } else {
+                last_span = generic_constrait.span;
+            }
+
+            generics.push(generic_constrait);
+        }
+
+        let span = Span::new_spanned(where_clause.span, last_span);
+
+        Ok(Some(WhereClause::new(generics, span)))
+    }
+
+    fn generic_constrait(&mut self) -> Option<GenericConstrait<'t>> {
+        let identifier_spanned = self.advance_until_identifier_spanned()?;
+        let identifier = identifier_spanned.data;
+        let mut constraits = thin_vec![];
+        let last_span = loop {
+            let return_type = self.return_type()?;
+            let rt_span = return_type.span;
+            constraits.push(return_type);
+
+            if !self.next_if_kind(TokenKind::Plus).is_none() {
+                break rt_span
+            }
+        };
+
+        let span = Span::new_spanned(identifier_spanned.span, last_span);
+
+        Some(GenericConstrait { identifier, constraits, span })
+    }
+
+    #[inline]
     pub fn return_type(&mut self) -> Option<ReturnType<'t>> {
         let mut return_type = if let Some(pl) = self.next_if_kind(TokenKind::ParanthesisLeft) {
             let types = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::return_type)?;
@@ -351,9 +465,16 @@ impl<'t> Parser<'t> {
         loop {
             return_type = match self.next_if(|t| matches!(t.kind, TokenKind::SquareBracketLeft | TokenKind::QuestionMark)) {
                 Some(Token { kind: TokenKind::SquareBracketLeft, .. }) => {
+                    let start_span = return_type.span;
+                    let kind = if self.is_next(TokenKind::SquareBracketRight) {
+                        ReturnTypeKind::Array(Box::new(return_type))
+                    } else {
+                        let generic_parameters = self.comma_seperated_map(TokenKind::SquareBracketRight, Self::return_type)?;
+                        ReturnTypeKind::Generic(Box::new(return_type), generic_parameters)
+                    };
+
                     let sbr = self.advance_until_kind(TokenKind::SquareBracketRight)?;
-                    let span = Span::new_spanned(return_type.span, sbr.span);
-                    let kind = ReturnTypeKind::Array(Box::new(return_type));
+                    let span = Span::new_spanned(start_span, sbr.span);
 
                     ReturnType { kind, span }
                 },
@@ -564,6 +685,8 @@ impl<'t> Parser<'t> {
 
 #[cfg(test)]
 mod tests {
+    use core::assert_matches;
+    use ezscn_ast::{expression::{ExpressionKind, LiteralExpression}};
     use super::*;
     // TODO: Test cases
 }
