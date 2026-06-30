@@ -73,23 +73,14 @@ pub fn return_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
 #[inline]
 pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     let let_kw = parser.next_if_kind_errored(TokenKind::LetKeyword)?;
-    let mut identifiers = thin_vec![];
-    if parser.peek().is_some_and(|t| t.kind == TokenKind::ParanthesisLeft) {
-        parser.advance_until_kind(TokenKind::ParanthesisLeft)?;
-        loop {
-            if parser.token_stream.is_next(TokenKind::ParanthesisRight) {
-                break
-            }
-
-            identifiers.push(parser.advance_until_identifier_or_underscore()?);
-            if !parser.token_stream.is_next(TokenKind::ParanthesisRight) {
-                parser.advance_until_kind(TokenKind::Comma)?;
-            }
-        }
+    let identifiers = if parser.next_if_kind(TokenKind::ParanthesisLeft).is_some() {
+        let identifiers = parser.comma_seperated_map(TokenKind::ParanthesisRight, Parser::advance_until_identifier_or_underscore)?;
         parser.advance_until_kind(TokenKind::ParanthesisRight)?;
+
+        identifiers
     } else {
-        identifiers.push(parser.advance_until_identifier_or_underscore()?)
-    }
+        thin_vec![parser.advance_until_identifier_or_underscore()?]
+    };
 
     let return_type = if parser.next_if_kind(TokenKind::Colon).is_some() {
         Some(parser.return_type()?)
@@ -115,13 +106,21 @@ pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
 #[inline]
 pub fn for_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
     let for_kw = parser.next_if_kind_errored(TokenKind::ForKeyword)?;
-    let identifier = parser.advance_until_identifier_or_underscore()?;
+    let identifiers = if parser.next_if_kind(TokenKind::ParanthesisLeft).is_some() {
+        let identifiers = parser.comma_seperated_map(TokenKind::ParanthesisRight, Parser::advance_until_identifier_or_underscore)?;
+        parser.advance_until_kind(TokenKind::ParanthesisRight)?;
+
+        identifiers
+    } else {
+        thin_vec![parser.advance_until_identifier_or_underscore()?]
+    };
+    
     parser.advance_until_kind(TokenKind::InKeyword)?;
     let expression = parser.expression()?;
     let block = block(parser)?;
 
     let span = Span::new_spanned(for_kw.span, block.span);
-    let for_loop_statement = ForLoopStatement { identifier, expression, block };
+    let for_loop_statement = ForLoopStatement { identifiers, expression, block };
     let kind = StatementKind::ForLoop(for_loop_statement);
 
     Some(Statement { kind, span })

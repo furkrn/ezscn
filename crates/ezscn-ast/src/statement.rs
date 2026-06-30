@@ -36,7 +36,7 @@ pub enum WaitStatementKind<'e> {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ForLoopStatement<'e> {
-    pub identifier: IdentifierOrUnderscore<'e>,
+    pub identifiers: ThinVec<IdentifierOrUnderscore<'e>>,
     pub expression: Expression<'e>,
     pub block: Block<'e>,
 }
