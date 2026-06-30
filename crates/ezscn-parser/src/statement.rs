@@ -14,7 +14,7 @@ pub fn block<'t>(parser: &mut Parser<'t>) -> Option<Block<'t>> {
     }
 
     let cbr_span = parser.advance_until_kind(TokenKind::CurlyBracketRight)?.span;
-    let span = Span::new_spanned(cbl_span, cbr_span);
+    let span = Span::merge(cbl_span, cbr_span);
 
     Some(Spanned::new(statements, span))
 }
@@ -48,7 +48,7 @@ pub fn expression_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>
     let exp = parser.expression()?;
     let semicolon = parser.next_if_kind(TokenKind::Semicolon);
 
-    let span = Span::new_spanned(exp.span, semicolon.map(|s| s.span).unwrap_or(exp.span));
+    let span = Span::merge(exp.span, semicolon.map(|s| s.span).unwrap_or(exp.span));
     let kind = StatementKind::Expression(exp, semicolon.is_none());
 
     Some(Statement { kind, span })
@@ -64,7 +64,7 @@ pub fn return_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     };
 
     let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
-    let span = Span::new_spanned(return_kw.span, semicolon.span);
+    let span = Span::merge(return_kw.span, semicolon.span);
     let kind = StatementKind::Return(exp);
 
     Some(Statement { kind, span })
@@ -97,7 +97,7 @@ pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
 
     let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
 
-    let span = Span::new_spanned(let_kw.span, semicolon.span);
+    let span = Span::merge(let_kw.span, semicolon.span);
     let kind = StatementKind::Let(identifiers, return_type, expression);
 
     Some(Statement { kind, span })
@@ -119,7 +119,7 @@ pub fn for_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
     let expression = parser.expression()?;
     let block = block(parser)?;
 
-    let span = Span::new_spanned(for_kw.span, block.span);
+    let span = Span::merge(for_kw.span, block.span);
     let for_loop_statement = ForLoopStatement { identifiers, expression, block };
     let kind = StatementKind::ForLoop(for_loop_statement);
 
@@ -132,7 +132,7 @@ pub fn while_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
     let expression = parser.expression()?;
     let block = block(parser)?;
 
-    let span = Span::new_spanned(while_kw.span, block.span);
+    let span = Span::merge(while_kw.span, block.span);
     let while_loop = WhileLoopStatement { expression, block };
     let kind = StatementKind::WhileLoop(while_loop);
 
@@ -144,7 +144,7 @@ pub fn break_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     let break_kw = parser.next_if_kind_errored(TokenKind::BreakKeyword)?;
     let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
 
-    let span = Span::new_spanned(break_kw.span, semicolon.span);
+    let span = Span::merge(break_kw.span, semicolon.span);
     let kind = StatementKind::Break;
 
     Some(Statement { kind, span })
@@ -155,7 +155,7 @@ pub fn continue_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> 
     let continue_kw = parser.next_if_kind_errored(TokenKind::ContinueKeyword)?;
     let semicolon = parser.advance_until_kind(TokenKind::Semicolon)?;
 
-    let span = Span::new_spanned(continue_kw.span, semicolon.span);
+    let span = Span::merge(continue_kw.span, semicolon.span);
     let kind = StatementKind::Continue;
 
     Some(Statement { kind, span })

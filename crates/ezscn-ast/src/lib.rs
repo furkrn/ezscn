@@ -81,7 +81,7 @@ pub struct ReturnType<'t> {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ReturnTypeKind<'i> {
-    Type(Path<'i>),
+    Path(Path<'i>),
     Generic(Box<ReturnType<'i>>, ThinVec<ReturnType<'i>>),
     Tuple(ThinVec<ReturnType<'i>>),
     Array(Box<ReturnType<'i>>),
@@ -157,7 +157,7 @@ pub enum VisibilityModifiers {
 #[derive(Debug, Eq, PartialEq)]
 pub struct GenericParam<'s> {
     pub identifier: Identifier<'s>,
-    pub constrait: Option<ThinVec<ReturnType<'s>>>,
+    pub constraits: Option<ThinVec<ReturnType<'s>>>,
     pub span: Span,
 }
 

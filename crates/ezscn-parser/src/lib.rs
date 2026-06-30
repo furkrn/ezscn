@@ -89,7 +89,7 @@ impl<'t> Parser<'t> {
         let vis = self.modifier()?;
         let item = self.item()?;
 
-        let span = Span::new_spanned(vis.span, item.span);
+        let span = Span::merge(vis.span, item.span);
         let kind = ItemKind::Visible(vis.data, Box::new(item));
 
         Some(Item { kind, span })
@@ -121,7 +121,7 @@ impl<'t> Parser<'t> {
         }
 
         let item = self.item()?;
-        let span = Span::new_spanned(first_t_token.span, item.span);
+        let span = Span::merge(first_t_token.span, item.span);
         let kind = ItemKind::AttributeCollectedItem(attributes, Box::new(item));
 
         Some(Item { kind, span })
@@ -141,7 +141,7 @@ impl<'t> Parser<'t> {
         self.advance_until_kind(TokenKind::CurlyBracketLeft)?;
         let items = self.comma_seperated_map(TokenKind::CurlyBracketRight, Self::enum_member)?;
         let cbr = self.advance_until_kind(TokenKind::CurlyBracketRight)?;
-        let span = Span::new_spanned(enum_kw.span, cbr.span);
+        let span = Span::merge(enum_kw.span, cbr.span);
         let kind = ItemKind::Enum(EnumItem { identifier, items, flags, derived_type });
 
         Some(Item { kind, span })
@@ -176,7 +176,7 @@ impl<'t> Parser<'t> {
                 Ok(token) =>
                     Err(ParseError::new(ParseErrorKind::InvalidStructToken(token.kind), token.span, token.line)),
                 Err(EndLineInformation { len, .. }) => {
-                    let span = Span::new_spanned(struct_kw.span, Span::empty_from_start(len));
+                    let span = Span::merge(struct_kw.span, Span::empty_from_start(len));
                     Err(ParseError::new(ParseErrorKind::UnterminatedStruct, span, struct_kw.line))
                 }
             }
@@ -198,7 +198,7 @@ impl<'t> Parser<'t> {
             _ => (StructMemberDefinition::Zero, token),
         };
 
-        let span = Span::new_spanned(struct_kw.span, end_token.span);
+        let span = Span::merge(struct_kw.span, end_token.span);
         let kind = ItemKind::Struct(StructItem { identifier, members, generics, where_clause });
 
         Some(Item { kind, span })
@@ -236,7 +236,7 @@ impl<'t> Parser<'t> {
         }
 
         let cbr = self.advance_until_kind(TokenKind::CurlyBracketRight)?;
-        let span = Span::new_spanned(feature_kw.span, cbr.span);
+        let span = Span::merge(feature_kw.span, cbr.span);
         let kind = ItemKind::Feature(FeatureItem { feature_ident, implementation, items, generics, where_clause });
 
         Some(Item { kind, span })
@@ -253,7 +253,7 @@ impl<'t> Parser<'t> {
             None
         };
         let semicolon = self.advance_until_kind(TokenKind::Semicolon)?;
-        let span = Span::new_spanned(import_kw.span, semicolon.span);
+        let span = Span::merge(import_kw.span, semicolon.span);
         let kind = ItemKind::Import(ImportItem { path, alias });
 
         Some(Item { kind, span })
@@ -265,7 +265,7 @@ impl<'t> Parser<'t> {
         self.advance_until_kind(TokenKind::CurlyBracketLeft)?;
         let members = self.comma_seperated_map(TokenKind::CurlyBracketRight, Self::config_member)?;
         let cbr = self.advance_until_kind(TokenKind::CurlyBracketRight)?;
-        let span = Span::new_spanned(config_kw.span, cbr.span);
+        let span = Span::merge(config_kw.span, cbr.span);
         let kind = ItemKind::Config(ConfigItem { members });
 
         Some(Item { kind, span })
@@ -307,7 +307,7 @@ impl<'t> Parser<'t> {
             (None, self.next()?.span)
         };
 
-        let span = Span::new_spanned(func_kw.span, end_span);
+        let span = Span::merge(func_kw.span, end_span);
         let kind = ItemKind::Func(FuncItem { identifier, params, block, return_type, where_clause, generics });
 
         Some(Item { kind, span })
@@ -337,7 +337,7 @@ impl<'t> Parser<'t> {
         let identifier = self.advance_until_identifier()?;
         let semicolon = self.advance_until_kind(TokenKind::Semicolon)?;
 
-        let span = Span::new_spanned(sig_kw.span, semicolon.span);
+        let span = Span::merge(sig_kw.span, semicolon.span);
         let kind = ItemKind::Sig(SigItem { sig_type, identifier });
 
         Some(Item { kind, span })
@@ -369,7 +369,7 @@ impl<'t> Parser<'t> {
         let sbr = self.advance_until_kind(TokenKind::SquareBracketRight)
             .ok_or(ParseErrored)?;
 
-        let span = Span::new_spanned(sbl.span, sbr.span);
+        let span = Span::merge(sbl.span, sbr.span);
 
         Ok(Some(Generics::new(generic_parameters, span)))
     }
@@ -379,26 +379,26 @@ impl<'t> Parser<'t> {
         let identifier_spanned = self.advance_until_identifier_spanned()?;
         let identifier = identifier_spanned.data;
         let mut last_span = identifier_spanned.span;
-        let constrait = if self.next_if_kind(TokenKind::Colon).is_some() {
-            let mut constrait = thin_vec![];
+        let constraits = if self.next_if_kind(TokenKind::Colon).is_some() {
+            let mut vec = thin_vec![];
             loop {
                 let return_type = self.return_type()?;
                 last_span = return_type.span;
-                constrait.push(return_type);
+                vec.push(return_type);
 
                 if !self.next_if_kind(TokenKind::Plus).is_none() {
                     break
                 }
             }
 
-            Some(constrait)
+            Some(vec)
         } else {
             None
         };
 
-        let span = Span::new_spanned(identifier_spanned.span, last_span);
+        let span = Span::merge(identifier_spanned.span, last_span);
 
-        Some(GenericParam { identifier, constrait, span })
+        Some(GenericParam { identifier, constraits, span })
     }
 
     #[inline]
@@ -426,7 +426,7 @@ impl<'t> Parser<'t> {
             generics.push(generic_constrait);
         }
 
-        let span = Span::new_spanned(where_clause.span, last_span);
+        let span = Span::merge(where_clause.span, last_span);
 
         Ok(Some(WhereClause::new(generics, span)))
     }
@@ -445,7 +445,7 @@ impl<'t> Parser<'t> {
             }
         };
 
-        let span = Span::new_spanned(identifier_spanned.span, last_span);
+        let span = Span::merge(identifier_spanned.span, last_span);
 
         Some(GenericConstrait { identifier, constraits, span })
     }
@@ -455,14 +455,14 @@ impl<'t> Parser<'t> {
         let mut return_type = if let Some(pl) = self.next_if_kind(TokenKind::ParanthesisLeft) {
             let types = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::return_type)?;
             let pr = self.advance_until_kind(TokenKind::ParanthesisRight)?;
-            let span = Span::new_spanned(pl.span, pr.span);
+            let span = Span::merge(pl.span, pr.span);
             let kind = ReturnTypeKind::Tuple(types);
 
             ReturnType { kind, span }
         } else {
             let type_name = self.advance_until_path()?;
             let span = type_name.span;
-            let kind = ReturnTypeKind::Type(type_name);
+            let kind = ReturnTypeKind::Path(type_name);
 
             ReturnType { kind, span }
         };
@@ -479,12 +479,12 @@ impl<'t> Parser<'t> {
                     };
 
                     let sbr = self.advance_until_kind(TokenKind::SquareBracketRight)?;
-                    let span = Span::new_spanned(start_span, sbr.span);
+                    let span = Span::merge(start_span, sbr.span);
 
                     ReturnType { kind, span }
                 },
                 Some(Token { kind: TokenKind::QuestionMark, span, .. }) => {
-                    let span = Span::new_spanned(return_type.span, span);
+                    let span = Span::merge(return_type.span, span);
                     let kind = ReturnTypeKind::Nullable(Box::new(return_type));
 
                     ReturnType { kind, span }
@@ -508,7 +508,7 @@ impl<'t> Parser<'t> {
             last_span = identifier.span;
         }
 
-        let span = Span::new_spanned(first_identifier.span, last_span);
+        let span = Span::merge(first_identifier.span, last_span);
         Some(Path { identifiers, span })
     }
 

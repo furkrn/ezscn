@@ -12,7 +12,7 @@ pub trait SpanImpl: Seal + Eq + PartialEq {
 
     fn new(start: Self::Item, end: Self::Item) -> Self;
     fn empty_from_start(start: Self::Item) -> Self;
-    fn new_spanned(start_span: Self, end_span: Self) -> Self;
+    fn merge(start_span: Self, end_span: Self) -> Self;
     fn start(&self) -> Self::Item;
     fn end(&self) -> Self::Item;
     fn shift_start_right(self, l: Self::Item) -> Self;
@@ -39,7 +39,7 @@ impl SpanImpl for Span {
     }
 
     #[inline]
-    fn new_spanned(start_span: Self, end_span: Self) -> Self {
+    fn merge(start_span: Self, end_span: Self) -> Self {
         Self { start: start_span.start, end: end_span.end }
     }
 

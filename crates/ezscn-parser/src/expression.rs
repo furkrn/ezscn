@@ -21,7 +21,7 @@ pub fn assignment_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'
     let mut left = conditional_or_expression(parser)?;
     while let Some(op) = assignment_op(parser) {
         let right = conditional_or_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Assignment(Box::new(left), op, Box::new(right));
         left = Expression { kind, span }
     }
@@ -67,7 +67,7 @@ pub fn conditional_or_expression<'t>(parser: &mut Parser<'t>) -> Option<Expressi
     let mut left = conditional_and_expression(parser)?;
     while parser.next_if(|t| t.kind == TokenKind::OrOr).is_some() {
         let right = conditional_and_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Conditional(Box::new(left), ConditionalOperator::Or, Box::new(right));
         left = Expression { kind, span }
     }
@@ -80,7 +80,7 @@ pub fn conditional_and_expression<'t>(parser: &mut Parser<'t>) -> Option<Express
     let mut left = logical_or_expression(parser)?;
     while parser.next_if(|t| t.kind == TokenKind::AndAnd).is_some() {
         let right = logical_or_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Conditional(Box::new(left), ConditionalOperator::And, Box::new(right));
         left = Expression { kind, span }
     }
@@ -93,7 +93,7 @@ pub fn logical_or_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'
     let mut left = logical_xor_expression(parser)?;
     while parser.next_if(|t| t.kind == TokenKind::Or).is_some() {
         let right = logical_xor_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::Or, Box::new(right));
         left = Expression { kind, span }
     }
@@ -107,7 +107,7 @@ pub fn logical_xor_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<
     let mut left = logical_and_expression(parser)?;
     while parser.next_if(|t| t.kind == TokenKind::Caret).is_some() {
         let right = logical_and_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::Xor, Box::new(right));
         left = Expression { kind, span }
     }
@@ -120,7 +120,7 @@ pub fn logical_and_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<
     let mut left = equality_expression(parser)?;
     while parser.next_if(|t| t.kind == TokenKind::And).is_some() {
         let right = equality_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Logical(Box::new(left), LogicalOperator::And, Box::new(right));
         left = Expression { kind, span }
     }
@@ -133,7 +133,7 @@ pub fn equality_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>
     let mut left = comparision_expression(parser)?;
     while let Some(op) = equality_op(parser){
         let right = comparision_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Equality(Box::new(left), op, Box::new(right));
         left = Expression { kind, span }
     };
@@ -173,7 +173,7 @@ pub fn comparision_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<
     };
 
     let right = additive_expression(parser)?;
-    let span = Span::new_spanned(left.span, right.span);
+    let span = Span::merge(left.span, right.span);
     let kind = ExpressionKind::Comparision(Box::new(left), op, Box::new(right));
 
     Some(Expression { kind, span })
@@ -184,7 +184,7 @@ pub fn shift_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let mut left = additive_expression(parser)?;
     while let Some(op) = shift_op(parser) {
         let right = additive_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
         left = Expression { kind, span }
     }
@@ -210,7 +210,7 @@ pub fn additive_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>
     let mut left = multiplicative_expression(parser)?;
     while let Some(op) = additive_op(parser) {
         let right = multiplicative_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
         left = Expression { kind, span }
     }
@@ -236,7 +236,7 @@ pub fn multiplicative_expression<'t>(parser: &mut Parser<'t>) -> Option<Expressi
     let mut left = unary_expression(parser)?;
     while let Some(op) = multiplicative_op(parser) {
         let right = unary_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Binary(Box::new(left), op, Box::new(right));
         left = Expression { kind, span }
     }
@@ -284,7 +284,7 @@ pub fn unary_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     };
 
     let expr = unary_expression(parser)?;
-    let span = Span::new_spanned(start_span, expr.span);
+    let span = Span::merge(start_span, expr.span);
     let kind = ExpressionKind::Unary(op, Box::new(expr));
 
     Some(Expression { kind, span })
@@ -318,7 +318,7 @@ pub fn call_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>
     while parser.next_if_kind(TokenKind::ParanthesisLeft).is_some() {
         let args = parser.comma_seperated_map(TokenKind::ParanthesisRight, expression)?;
         let pr_token = parser.advance_until_kind(TokenKind::ParanthesisRight)?;
-        let span = Span::new_spanned(left.span, pr_token.span);
+        let span = Span::merge(left.span, pr_token.span);
         let kind = ExpressionKind::Call(Box::new(left), args);
         left = Expression { kind, span }
     }
@@ -332,7 +332,7 @@ pub fn index_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>
     while parser.next_if_kind(TokenKind::SquareBracketLeft).is_some() {
         let exprs = parser.comma_seperated_map(TokenKind::SquareBracketRight, expression)?;
         let sbr_token = parser.advance_until_kind(TokenKind::SquareBracketRight)?;
-        let span = Span::new_spanned(left.span, sbr_token.span);
+        let span = Span::merge(left.span, sbr_token.span);
         let kind = ExpressionKind::Index(Box::new(left), exprs);
         left = Expression { kind, span }
     }
@@ -345,7 +345,7 @@ pub fn reference_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression
     let mut left = left.or_else(|| primary_expression(parser))?;
     while parser.next_if_kind(TokenKind::Dot).is_some() {
         let right = postfix_expression(parser)?;
-        let span = Span::new_spanned(left.span, right.span);
+        let span = Span::merge(left.span, right.span);
         let kind = ExpressionKind::Reference(Box::new(left), Box::new(right));
         left = Expression { kind, span }
     }
@@ -357,7 +357,7 @@ pub fn reference_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression
 pub fn post_op_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
     let mut left = left.or_else(|| primary_expression(parser))?;
     while let Some((op, end_span)) = post_op_span(parser) {
-        let span = Span::new_spanned(left.span, end_span);
+        let span = Span::merge(left.span, end_span);
         let kind = ExpressionKind::PostOp(Box::new(left), op);
         left = Expression { kind, span }
     }
@@ -382,7 +382,7 @@ fn post_op_span(parser: &mut Parser<'_>) -> Option<(PostOperator, Span)> {
 pub fn short_circuit_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>) -> Option<Expression<'t>> {
     let mut left = left.or_else(|| primary_expression(parser))?;
     while let Some(mark) = parser.next_if_kind(TokenKind::QuestionMark) {
-        let span = Span::new_spanned(left.span, mark.span);
+        let span = Span::merge(left.span, mark.span);
         let kind = ExpressionKind::ShortCircuit(Box::new(left));
         left = Expression { kind, span }
     }
@@ -395,7 +395,7 @@ pub fn path_expression<'t>(parser: &mut Parser<'t>, left: Option<Expression<'t>>
     let mut left = left.or_else(|| primary_expression(parser))?;
     while parser.next_if_kind(TokenKind::ColonColon).is_some() {
         let expr = expression(parser)?;
-        let span = Span::new_spanned(left.span, expr.span);
+        let span = Span::merge(left.span, expr.span);
         let kind = ExpressionKind::Path(Box::new(left), Box::new(expr));
         left = Expression { kind, span }
     }
@@ -482,7 +482,7 @@ pub fn new_init_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>
         (NewExprType::Zero, return_type.span)
     };
 
-    let span = Span::new_spanned(new_kw.span, end_span);
+    let span = Span::merge(new_kw.span, end_span);
     let kind = ExpressionKind::New(return_type, inits);
 
     Some(Expression { kind, span })
@@ -509,7 +509,7 @@ pub fn tuple_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let pl = parser.advance_until_kind(TokenKind::ParanthesisLeft)?;
     let exprs = parser.comma_seperated_map(TokenKind::ParanthesisRight, expression)?;
     let pr = parser.advance_until_kind(TokenKind::ParanthesisRight)?;
-    let span = Span::new_spanned(pl.span, pr.span);
+    let span = Span::merge(pl.span, pr.span);
     let kind = ExpressionKind::Tuple(exprs);
 
     Some(Expression { kind, span })
@@ -520,7 +520,7 @@ pub fn array_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let sbl_span = parser.advance_until_kind(TokenKind::SquareBracketLeft)?.span;
     let exprs = parser.comma_seperated_map(TokenKind::SquareBracketRight, expression)?;
     let sbr_span = parser.advance_until_kind(TokenKind::SquareBracketRight)?.span;
-    let span = Span::new_spanned(sbl_span, sbr_span);
+    let span = Span::merge(sbl_span, sbr_span);
     let kind = ExpressionKind::Array(exprs);
 
     Some(Expression { kind, span })
@@ -726,7 +726,7 @@ pub fn match_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     parser.advance_until_kind(TokenKind::CurlyBracketLeft)?;
     let match_arms = parser.comma_seperated_map(TokenKind::CurlyBracketRight, match_arm)?;
     let cbr = parser.advance_until_kind(TokenKind::CurlyBracketRight)?;
-    let span = Span::new_spanned(match_kw.span, cbr.span);
+    let span = Span::merge(match_kw.span, cbr.span);
     let kind = ExpressionKind::Match(Box::new(matcher), match_arms);
 
     Some(Expression { kind, span })
@@ -785,7 +785,7 @@ pub fn if_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
         .or_else(|| else_if_arms.last().map(|t| t.block.span))
         .unwrap_or(if_arm.block.span);
 
-    let span = Span::new_spanned(if_kw.span, end_span);
+    let span = Span::merge(if_kw.span, end_span);
     let kind = ExpressionKind::If(Box::new(if_arm), else_if_arms, else_arm);
 
     Some(Expression { kind, span })
@@ -800,7 +800,7 @@ pub fn closure_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
     parser.advance_until_kind(TokenKind::FatArrow)?;
     let block = block(parser)?;
 
-    let span = Span::new_spanned(dollar_token.span, block.span);
+    let span = Span::merge(dollar_token.span, block.span);
     let kind = ExpressionKind::Closure(param_list, block);
 
     Some(Expression { kind, span })
@@ -813,7 +813,7 @@ fn closure_param<'t>(parser: &mut Parser<'t>) -> Option<ClosureParam<'t>> {
     let mut span = identifier_token.span;
     let return_type = if parser.next_if_kind(TokenKind::Colon).is_some() {
         let return_type = parser.return_type()?;
-        span = Span::new_spanned(span, return_type.span);
+        span = Span::merge(span, return_type.span);
 
         Some(return_type)
     } else {
