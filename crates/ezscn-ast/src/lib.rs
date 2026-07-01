@@ -10,9 +10,11 @@ use crate::expression::Expression;
 
 pub mod expression;
 pub mod statement;
+pub mod visit;
 
 pub type Ast<'i> = ThinVec<Item<'i>>;
 pub type Identifier<'s> = &'s str;
+pub type ReturnTypes<'s> = ThinVec<ReturnType<'s>>;
 pub type Block<'s> = Spanned<ThinVec<Statement<'s>>>;
 pub type Generics<'s> = Spanned<ThinVec<GenericParam<'s>>>;
 pub type WhereClause<'s> = Spanned<ThinVec<GenericConstrait<'s>>>;
@@ -63,7 +65,7 @@ pub struct StructItem<'i> {
 #[derive(Debug, Eq, PartialEq)]
 pub enum StructMemberDefinition<'i> {
     Field(ThinVec<Field<'i>>),
-    Tuple(ThinVec<ReturnType<'i>>),
+    Tuple(ReturnTypes<'i>),
     Zero,
 }
 
@@ -82,8 +84,8 @@ pub struct ReturnType<'t> {
 #[derive(Debug, Eq, PartialEq)]
 pub enum ReturnTypeKind<'i> {
     Path(Path<'i>),
-    Generic(Box<ReturnType<'i>>, ThinVec<ReturnType<'i>>),
-    Tuple(ThinVec<ReturnType<'i>>),
+    Generic(Box<ReturnType<'i>>, ReturnTypes<'i>),
+    Tuple(ReturnTypes<'i>),
     Array(Box<ReturnType<'i>>),
     Nullable(Box<ReturnType<'i>>),
 }
@@ -157,13 +159,13 @@ pub enum VisibilityModifiers {
 #[derive(Debug, Eq, PartialEq)]
 pub struct GenericParam<'s> {
     pub identifier: Identifier<'s>,
-    pub constraits: Option<ThinVec<ReturnType<'s>>>,
+    pub constraits: Option<ReturnTypes<'s>>,
     pub span: Span,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct GenericConstrait<'s> {
     pub identifier: Identifier<'s>,
-    pub constraits: ThinVec<ReturnType<'s>>,
+    pub constraits: ReturnTypes<'s>,
     pub span: Span,
 }
