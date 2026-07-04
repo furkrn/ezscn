@@ -73,6 +73,7 @@ impl<'t> Parser<'t> {
         match self.peek().map(|t| t.kind)? {
             TokenKind::EnumKeyword => self.enum_item(),
             TokenKind::StructKeyword => self.struct_item(),
+            TokenKind::LocalKeyword => self.field_item(),
             TokenKind::ConfigKeyword => self.config_item(),
             TokenKind::FuncKeyword => self.func_item(),
             TokenKind::SigKeyword => self.sig_item(),
@@ -162,16 +163,23 @@ impl<'t> Parser<'t> {
     #[inline]
     pub fn struct_item(&mut self) -> Option<Item<'t>> {
         let struct_kw = self.advance_until_kind(TokenKind::StructKeyword)?;
-        let identifier_token = self.advance_until_identifier_spanned()?;
+        let identifier = self.advance_until_identifier()?;
         let generics = self.generics()
             .ok()?;
 
         let where_clause = self.where_clause()
             .ok()?;
 
+        let mut tuple_members = thin_vec![];
+        if self.next_if_kind(TokenKind::ParanthesisLeft).is_some() {
+            tuple_members = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::return_type)?;
+            self.advance_until_kind(TokenKind::ParanthesisRight)?;
+        }
+
+        let mut items = thin_vec![];
         let token = self.advance_map(|token| {
             match token {
-                Ok(token) if matches!(token.kind, TokenKind::Semicolon | TokenKind::ParanthesisLeft | TokenKind::CurlyBracketLeft) =>
+                Ok(token) if matches!(token.kind, TokenKind::Semicolon | TokenKind::CurlyBracketLeft) =>
                     Ok(token),
                 Ok(token) =>
                     Err(ParseError::new(ParseErrorKind::InvalidStructToken(token.kind), token.span, token.line)),
@@ -182,35 +190,34 @@ impl<'t> Parser<'t> {
             }
         })?;
 
-        let identifier = identifier_token.data;
-        let (members, end_token) = match token.kind {
-            TokenKind::ParanthesisLeft => {
-                let tuple_list = self.comma_seperated_map(TokenKind::ParanthesisRight, Self::return_type)?;
-                self.advance_until_kind(TokenKind::ParanthesisRight)?;
+        let end_token = if token.kind == TokenKind::CurlyBracketLeft {
+            while !self.is_next(TokenKind::CurlyBracketRight) {
+                items.push(self.item()?)
+            }
 
-                (StructMemberDefinition::Tuple(tuple_list), self.advance_until_kind(TokenKind::Semicolon)?)
-            },
-            TokenKind::CurlyBracketLeft => {
-                let tuple_list = self.comma_seperated_map(TokenKind::CurlyBracketRight, Self::struct_field)?;
-
-                (StructMemberDefinition::Field(tuple_list), self.advance_until_kind(TokenKind::CurlyBracketRight)?)
-            },
-            _ => (StructMemberDefinition::Zero, token),
+            self.advance_until_kind(TokenKind::CurlyBracketRight)?
+        } else {
+            token
         };
 
         let span = Span::merge(struct_kw.span, end_token.span);
-        let kind = ItemKind::Struct(StructItem { identifier, members, generics, where_clause });
+        let kind = ItemKind::Struct(StructItem { identifier, tuple_members, generics, where_clause, items });
 
         Some(Item { kind, span })
     }
 
     #[inline]
-    fn struct_field(&mut self) -> Option<Field<'t>> {
+    fn field_item(&mut self) -> Option<Item<'t>> {
+        let local_kw = self.advance_until_kind(TokenKind::LocalKeyword)?;
         let identifier = self.advance_until_identifier()?;
         self.advance_until_kind(TokenKind::Colon)?;
         let return_type = self.return_type()?;
+        let semicolon = self.advance_until_kind(TokenKind::Semicolon)?;
 
-        Some(Field { identifier, return_type })
+        let field = FieldItem { identifier, return_type };
+        let span = Span::merge(local_kw.span, semicolon.span);
+
+        Some(Item { kind: ItemKind::Field(field), span })
     }
 
     #[inline]

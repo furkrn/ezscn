@@ -29,6 +29,7 @@ pub struct Item<'i> {
 pub enum ItemKind<'i> {
     Enum(EnumItem<'i>),
     Struct(StructItem<'i>),
+    Field(FieldItem<'i>),
     Config(ConfigItem<'i>),
     Const(ConstItem<'i>),
     Func(FuncItem<'i>),
@@ -59,20 +60,14 @@ pub struct StructItem<'i> {
     pub identifier: Identifier<'i>,
     pub generics: Option<Generics<'i>>,
     pub where_clause: Option<WhereClause<'i>>,
-    pub members: StructMemberDefinition<'i>,
+    pub tuple_members: ReturnTypes<'i>,
+    pub items: ThinVec<Item<'i>>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum StructMemberDefinition<'i> {
-    Field(ThinVec<Field<'i>>),
-    Tuple(ReturnTypes<'i>),
-    Zero,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct Field<'i> {
+pub struct FieldItem<'i> {
     pub identifier: Identifier<'i>,
-    pub return_type: ReturnType<'i>,
+    pub return_type: ReturnType<'i>
 }
 
 #[derive(Debug, Eq, PartialEq)]

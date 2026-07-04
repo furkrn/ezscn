@@ -117,26 +117,19 @@ pub trait Visitor<'a, 't>: Sized where 'a: 't {
 
     fn visit_struct_item(&mut self, s: &'a StructItem<'t>, _span: Span) -> ControlFlow<Self::BreakType> {
         walk_identifier(self, s.identifier)?;
-        walk_struct_member_definition(self, &s.members)?;
         walk_generics_option(self, s.generics.as_ref())?;
         walk_where_clause_option(self, s.where_clause.as_ref())?;
+        walk_return_types(self, &s.tuple_members)?;
+        walk_items(self, &s.items)?;
 
         ControlFlow::Continue(())
     }
 
-    fn visit_field_struct(&mut self, s: &'a ThinVec<Field<'t>>) -> ControlFlow<Self::BreakType> {
-        walk_fields(self, s)
-    }
-
-    fn visit_field(&mut self, f: &'a Field<'t>) -> ControlFlow<Self::BreakType> {
+    fn visit_field_item(&mut self, f: &'a FieldItem<'t>, _span: Span) -> ControlFlow<Self::BreakType> {
         walk_identifier(self, f.identifier)?;
         walk_return_type(self, &f.return_type)?;
 
         ControlFlow::Continue(())
-    }
-
-    fn visit_tuple_struct(&mut self, rts: &'a ThinVec<ReturnType<'t>>) -> ControlFlow<Self::BreakType> {
-        walk_return_types(self, rts)
     }
 
     fn visit_config_item(&mut self, c: &'a ConfigItem<'t>, _span: Span) -> ControlFlow<Self::BreakType> {
@@ -438,7 +431,6 @@ walk_list! {
     walk_paths, Path, walk_path;
     walk_items, Item, walk_item;
     walk_func_params, FuncParam, walk_func_param;
-    walk_fields, Field, walk_field;
     walk_enum_members, EnumMember, walk_enum_member;
     walk_if_arms, IfArm, walk_if_arm;
     walk_match_arms, MatchArm, walk_match_arm;
@@ -460,7 +452,6 @@ walk_visitor! {
     walk_identifier_or_underscore, visit_identifier_or_underscore, i: &'a IdentifierOrUnderscore<'t>;
     walk_closure_param, visit_closure_param, param: &'a ClosureParam<'t>;
     walk_identifier, visit_identifier, identifier: &'t str;
-    walk_field, visit_field, field: &'a Field<'t>;
     walk_enum_member, visit_enum_member, member: &'a EnumMember<'t>;
     walk_if_arm, visit_if_arm, if_arm: &'a IfArm<'t>;
     walk_match_arm, visit_match_arm, match_arm: &'a MatchArm<'t>;
@@ -481,6 +472,7 @@ pub fn walk_item<'a, 't, V: Visitor<'a, 't>>(visitor: &mut V, item: &'a Item<'t>
     match item.kind {
         ItemKind::Enum(ref item) => visitor.visit_enum_item(item, span),
         ItemKind::Struct(ref item) => visitor.visit_struct_item(item, span),
+        ItemKind::Field(ref item) => visitor.visit_field_item(item, span),
         ItemKind::Config(ref item) => visitor.visit_config_item(item, span),
         ItemKind::Const(ref item) => visitor.visit_const_item(item, span),
         ItemKind::Func(ref item) => visitor.visit_func_item(item, span),
@@ -539,14 +531,6 @@ pub fn walk_return_type<'a, 't, V: Visitor<'a, 't>>(visitor: &mut V, rt: &'a Ret
         ReturnTypeKind::Tuple(ref tys) => visitor.visit_tuple_return_type(tys, rt.span),
         ReturnTypeKind::Generic(ref left, ref params) => visitor.visit_generic_return_type(left, params),
         ReturnTypeKind::Path(ref path) => visitor.visit_path_return_type(path),
-    }
-}
-
-pub fn walk_struct_member_definition<'a, 't, V: Visitor<'a, 't>>(visitor: &mut V, def: &'a StructMemberDefinition<'t>) -> ControlFlow<V::BreakType> {
-    match def {
-        StructMemberDefinition::Field(f) => visitor.visit_field_struct(f),
-        StructMemberDefinition::Tuple(t) => visitor.visit_tuple_struct(t),
-        StructMemberDefinition::Zero => visitor.visit_zero_struct(),
     }
 }
 
