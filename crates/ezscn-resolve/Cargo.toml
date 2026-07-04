@@ -1,0 +1,8 @@
+[package]
+name = "ezscn-resolve"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+ezscn-ast = { path = "../ezscn-ast", version = "0.0.1" }
+ezscn-error = { version = "0.0.1", path = "../ezscn-error" }

@@ -55,6 +55,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ezscn-resolve"
+version = "0.0.1"
+dependencies = [
+ "ezscn-ast",
+ "ezscn-error",
+]
+
+[[package]]
 name = "ezscn-tokens"
 version = "0.0.1"
 dependencies = [
