@@ -218,6 +218,7 @@ pub enum TokenKind {
     WhereKeyword,
     AsKeyword,
     PubKeyword,
+    LocalKeyword,
 
     StringLiteral {
         options: StringOptions,
@@ -324,6 +325,7 @@ impl Display for TokenKind {
             Self::WhereKeyword => "where",
             Self::AsKeyword => "as",
             Self::PubKeyword => "pub",
+            Self::LocalKeyword => "local",
             Self::StringLiteral { .. } => "<STRING>",
             Self::NumberLiteral { .. } => "<NUMBER>",
             Self::CharacterLiteral { .. } => "<CHARACTER>",
