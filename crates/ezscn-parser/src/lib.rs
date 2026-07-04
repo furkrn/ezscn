@@ -322,11 +322,18 @@ impl<'t> Parser<'t> {
 
     #[inline]
     fn func_param(&mut self) -> Option<FuncParam<'t>> {
-        let identifier = self.advance_until_identifier()?;
-        self.advance_until_kind(TokenKind::Colon)?;
-        let return_type = self.return_type()?;
+        let fn_param = if self.next_if_kind(TokenKind::SelfKeyword).is_some() {
+            FuncParam::SelfP
+        } else {
+            let identifier = self.advance_until_identifier()?;
+            self.advance_until_kind(TokenKind::Colon)?;
+            let return_type = self.return_type()?;
 
-        Some(FuncParam { identifier, return_type })
+            FuncParam::Typed(identifier, return_type)
+        };
+
+
+        Some(fn_param)
     }
 
     #[inline]

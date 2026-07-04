@@ -114,9 +114,9 @@ pub struct FuncItem<'i> {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct FuncParam<'i> {
-    pub identifier: Identifier<'i>,
-    pub return_type: ReturnType<'i>,
+pub enum FuncParam<'i> {
+    SelfP,
+    Typed(Identifier<'i>, ReturnType<'i>),
 }
 
 #[derive(Debug, Eq, PartialEq)]

@@ -161,9 +161,13 @@ pub trait Visitor<'a, 't>: Sized where 'a: 't {
         ControlFlow::Continue(())
     }
 
-    fn visit_func_param(&mut self, p: &'a FuncParam<'t>) -> ControlFlow<Self::BreakType> {
-        walk_identifier(self, p.identifier)?;
-        walk_return_type(self, &p.return_type)?;
+    fn visit_func_param(&mut self, f: &'a FuncParam<'t>) -> ControlFlow<Self::BreakType> {
+        walk_func_param(self, f)
+    }
+
+    fn visit_typed_func_param(&mut self, identifier: &'t str, return_type: &'a ReturnType<'t>) -> ControlFlow<Self::BreakType> {
+        walk_identifier(self, identifier)?;
+        walk_return_type(self, return_type)?;
 
         ControlFlow::Continue(())
     }
@@ -399,6 +403,7 @@ pub trait Visitor<'a, 't>: Sized where 'a: 't {
         visit_literal_expression, _kind: &'a LiteralExpression<'t>, _span: Span;
         visit_identifier, _i: Identifier<'t>;
         visit_identifier_or_underscore, _i: &'a IdentifierOrUnderscore<'t>;
+        visit_selfp_func_param;
     }
 
     op_exp_visitor! {
@@ -445,7 +450,6 @@ walk_list_spanned! {
 }
 
 walk_visitor! {
-    walk_func_param, visit_func_param, param: &'a FuncParam<'t>;
     walk_generic_param, visit_generic_param, generic_param: &'a GenericParam<'t>;
     walk_generic_constrait, visit_generic_constrait, constrait: &'a GenericConstrait<'t>;
     walk_path, visit_path, constrait: &'a Path<'t>;
@@ -539,5 +543,12 @@ pub fn walk_new_expr<'a, 't, V: Visitor<'a, 't>>(visitor: &mut V, expr: &'a NewE
         NewExprType::Field(f) => visitor.visit_field_init_new_expression(f, span),
         NewExprType::Tuple(t) => visitor.visit_tuple_init_new_expression(t, span),
         NewExprType::Zero => visitor.visit_zero_init_new_expression(span),
+    }
+}
+
+pub fn walk_func_param<'a, 't, V: Visitor<'a, 't>>(visitor: &mut V, param: &'a FuncParam<'t>) -> ControlFlow<V::BreakType> {
+    match param {
+        FuncParam::Typed(ident, rt) => visitor.visit_typed_func_param(ident, rt),
+        FuncParam::SelfP => visitor.visit_selfp_func_param(),
     }
 }
