@@ -4,6 +4,7 @@ use ezscn_tokens::{Span, SpanImpl, Spanned, Token, TokenKind};
 use thin_vec::thin_vec;
 
 use crate::Parser;
+use crate::items::return_type;
 
 #[inline]
 pub fn block<'t>(parser: &mut Parser<'t>) -> Option<Block<'t>> {
@@ -83,7 +84,7 @@ pub fn let_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> {
     };
 
     let return_type = if parser.next_if_kind(TokenKind::Colon).is_some() {
-        Some(parser.return_type()?)
+        Some(return_type(parser)?)
     } else {
         None
     };
@@ -114,7 +115,7 @@ pub fn for_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>>{
     } else {
         thin_vec![parser.advance_until_identifier_or_underscore()?]
     };
-    
+
     parser.advance_until_kind(TokenKind::InKeyword)?;
     let expression = parser.expression()?;
     let block = block(parser)?;

@@ -7,6 +7,7 @@ use ezscn_tokens::{BaseN, CharacterEscapeType, Token,
 use ordered_float::OrderedFloat;
 use thin_vec::thin_vec;
 
+use crate::items::return_type;
 use crate::statement::{statement, block};
 use crate::{EndLineInformation, Parser};
 use crate::string::*;
@@ -305,7 +306,7 @@ pub fn postfix_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>>
                 post_op_expression(parser, left),
             Some(TokenKind::QuestionMark) =>
                 short_circuit_expression(parser, left),
-            Some(TokenKind::ColonColon) => 
+            Some(TokenKind::ColonColon) =>
                 path_expression(parser, left),
             _ => break left
         };
@@ -467,7 +468,7 @@ pub fn access_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> 
 #[inline]
 pub fn new_init_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
     let new_kw = parser.next_if_kind_errored(TokenKind::NewKeyword)?;
-    let return_type = parser.return_type()?;
+    let return_type = return_type(parser)?;
     let (inits, end_span) = if parser.next_if_kind(TokenKind::CurlyBracketLeft).is_some() {
         let inits = parser.comma_seperated_map(TokenKind::CurlyBracketRight, new_field_member)?;
         let cbr = parser.advance_until_kind(TokenKind::CurlyBracketRight)?;
@@ -812,7 +813,7 @@ fn closure_param<'t>(parser: &mut Parser<'t>) -> Option<ClosureParam<'t>> {
     let identifier = identifier_token.data;
     let mut span = identifier_token.span;
     let return_type = if parser.next_if_kind(TokenKind::Colon).is_some() {
-        let return_type = parser.return_type()?;
+        let return_type = return_type(parser)?;
         span = Span::merge(span, return_type.span);
 
         Some(return_type)
