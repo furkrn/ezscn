@@ -247,6 +247,9 @@ pub fn func_item<'t>(parser: &mut Parser<'t>) -> Option<Item<'t>> {
         None
     };
 
+    let where_clause = where_clause(parser)
+        .ok()?;
+
     let (block, end_span) = if !parser.is_next(TokenKind::Semicolon) {
         let block = block(parser)?;
         let span = block.span;
@@ -336,9 +339,11 @@ fn generic_param<'t>(parser: &mut Parser<'t>) -> Option<GenericParam<'t>> {
             last_span = return_type.span;
             vec.push(return_type);
 
-            if !parser.next_if_kind(TokenKind::Plus).is_none() {
+            if !parser.is_next(TokenKind::Plus) {
                 break
             }
+
+            parser.advance_until_kind(TokenKind::Plus)?;
         }
 
         Some(vec)
@@ -390,9 +395,11 @@ fn generic_constrait<'t>(parser: &mut Parser<'t>) -> Option<GenericConstrait<'t>
         let rt_span = return_type.span;
         constraits.push(return_type);
 
-        if !parser.next_if_kind(TokenKind::Plus).is_none() {
+        if !parser.is_next(TokenKind::Plus) {
             break rt_span
         }
+
+        parser.next_if_kind(TokenKind::Plus)?;
     };
 
     let span = Span::merge(identifier_spanned.span, last_span);
