@@ -386,6 +386,7 @@ pub fn where_clause<'t>(parser: &mut Parser<'t>) -> Result<Option<WhereClause<'t
 fn generic_constrait<'t>(parser: &mut Parser<'t>) -> Option<GenericConstrait<'t>> {
     let identifier_spanned = parser.advance_until_identifier_spanned()?;
     let identifier = identifier_spanned.data;
+    parser.advance_until_kind(TokenKind::Colon)?;
     let mut constraits = thin_vec![];
     let last_span = loop {
         let return_type = return_type(parser)?;
