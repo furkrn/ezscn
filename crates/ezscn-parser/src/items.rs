@@ -109,14 +109,14 @@ pub fn struct_item<'t>(parser: &mut Parser<'t>) -> Option<Item<'t>> {
     let generics = generics(parser)
         .ok()?;
 
-    let where_clause = where_clause(parser)
-        .ok()?;
-
     let mut tuple_members = thin_vec![];
     if parser.next_if_kind(TokenKind::ParanthesisLeft).is_some() {
         tuple_members = parser.comma_seperated_map(TokenKind::ParanthesisRight, return_type)?;
         parser.advance_until_kind(TokenKind::ParanthesisRight)?;
     }
+
+    let where_clause = where_clause(parser)
+        .ok()?;
 
     let mut items = thin_vec![];
     let token = parser.advance_map(|token| {
