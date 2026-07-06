@@ -156,7 +156,7 @@ fn equality_op(parser: &mut Parser<'_>) -> Option<EqualityOperator> {
 
 #[inline]
 pub fn comparision_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
-    let left = additive_expression(parser)?;
+    let left = shift_expression(parser)?;
     let Some(op) = parser.next_if_map(|t| {
         match t {
             Some(Token { kind: TokenKind::GreaterThan, .. }) =>
@@ -173,7 +173,7 @@ pub fn comparision_expression<'t>(parser: &mut Parser<'t>) -> Option<Expression<
         return Some(left)
     };
 
-    let right = additive_expression(parser)?;
+    let right = shift_expression(parser)?;
     let span = Span::merge(left.span, right.span);
     let kind = ExpressionKind::Comparision(Box::new(left), op, Box::new(right));
 

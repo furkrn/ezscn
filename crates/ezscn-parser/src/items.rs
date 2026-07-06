@@ -450,3 +450,443 @@ pub fn return_type<'t>(parser: &mut Parser<'t>) -> Option<ReturnType<'t>> {
 
     Some(return_type)
 }
+
+#[cfg(test)]
+mod tests {
+    use core::assert_matches;
+    use ezscn_ast::{expression::{Expression, ExpressionKind, LiteralExpression}};
+    use super::*;
+
+    #[test]
+    pub fn enum_item() {
+        fn matches_e1_members(m: &[EnumMember<'_>]) -> bool {
+            let mut iter = m.iter();
+
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "A", default_value: None }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "B", default_value: None }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "C", default_value: None }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_e2_members(m: &[EnumMember<'_>]) -> bool {
+            let mut iter = m.iter();
+
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "X", default_value: Some(Expression { kind: ExpressionKind::Literal(..), .. }) }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "Y", default_value: Some(Expression { kind: ExpressionKind::Binary(..), .. }) }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "Z", default_value: Some(Expression { kind: ExpressionKind::Binary(..), .. }) }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_e3_members(m: &[EnumMember<'_>]) -> bool {
+            let mut iter = m.iter();
+
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "M", default_value: None }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "N", default_value: None }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "P", default_value: Some(Expression { kind: ExpressionKind::Literal(..), .. }) }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_e4_members(m: &[EnumMember<'_>]) -> bool {
+            let mut iter = m.iter();
+
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "K", default_value: None }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "L", default_value: None }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "M", default_value: None }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "N", default_value: None }));
+            assert_matches!(iter.next(), Some(EnumMember { identifier: "P", default_value: None }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from(r#"
+            enum E1 { A, B, C }
+            enum flags E2 { X = 1, Y = 1 << 1, Z = 1 << 2 }
+            enum E3: a { M, N, P = 9 }
+            enum flags E4: bb { K, L, M, N, P }
+            "#);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Enum(EnumItem { identifier: "E1", items, flags: false, derived_type: None }), .. }) if matches_e1_members(&items));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Enum(EnumItem { identifier: "E2", items, flags: true, derived_type: None }), .. }) if matches_e2_members(&items));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Enum(EnumItem { identifier: "E3", items, flags: false, derived_type: Some(_) }), .. }) if matches_e3_members(&items));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Enum(EnumItem { identifier: "E4", items, flags: true, derived_type: Some(_) }), .. }) if matches_e4_members(&items));
+        assert!(parser.errors.is_empty());
+        assert_matches!(item(&mut parser), None);
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn struct_item() {
+        fn matches_tuple(p: &[ReturnType<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Path(Path { identifiers, .. }, ..), .. }) if *identifiers == ["a", "b", "c"]);
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Array(_), .. }));
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Nullable(_), .. }));
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Tuple(t), .. }) if t.len() == 3);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_zero_generic_struct_generics(p: &[GenericParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "T", constraits: Some(c), .. }) if c.len() == 1);
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "A", constraits: None, .. }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_zero_generic_struct_where(p: &[GenericConstrait<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericConstrait { identifier: "A", constraits, .. }) if constraits.len() == 1);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_generic_tuple_generics(p: &[GenericParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "T", constraits: None, .. }));
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "A", constraits: None, .. }));
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "B", constraits: Some(g), .. }) if g.len() == 1);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_generic_tuple_where(p: &[GenericConstrait<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericConstrait { identifier: "A", constraits, .. }) if constraits.len() == 2);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_generic_field_generics(p: &[GenericParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "T", constraits: None, .. }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_generic_field_where(p: &[GenericConstrait<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericConstrait { identifier: "T", constraits, .. }) if constraits.len() == 2);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from(r#"
+            struct Zero;
+            struct Tuple(a::b::c, a::b::c[], a::b::c[]?, (a, b, c));
+            struct Tuple(a::b::c, a::b::c[], a::b::c[]?, (a, b, c)) {
+                local x: y::z;
+            }
+            struct Field {
+                local x: a::b::c;
+                local y: a::b::c[];
+                local z: a::b::c[]?;
+                local t: (a, b, c);
+            }
+
+            struct ZeroGeneric[T: X, A] where A:T;
+            struct ZeroGeneric[T: X, A];
+            struct GenericTuple[T, A, B: x::y::z](T, A, B) where A: b::c::d + T;
+            struct GenericTupleNW[T, A, B: x::y::z](T, A, B) { }
+            struct GenericField[T] where T: x::y::z + a::b::c {
+                local x: T;
+            }
+
+            struct GenericFieldNW[T] {
+                local xyhjyltr: T;
+            }
+            "#);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "Zero", generics: None, where_clause: None, tuple_members, items, .. }), ..})
+            if tuple_members.is_empty() && items.is_empty());
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "Tuple", generics: None, where_clause: None, tuple_members, items, .. }), .. })
+            if matches_tuple(&tuple_members) && items.is_empty());
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "Tuple", generics: None, where_clause: None, tuple_members, items, .. }), .. })
+            if matches_tuple(&tuple_members) && items.len() == 1);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "Field", generics: None, where_clause: None, tuple_members, items, .. }), .. })
+            if tuple_members.is_empty() && items.len() == 4);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "ZeroGeneric", generics: Some(g), where_clause: Some(w), tuple_members, items, .. }), ..})
+            if tuple_members.is_empty() && items.is_empty() && matches_zero_generic_struct_generics(&g.data) && matches_zero_generic_struct_where(&w.data));
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "ZeroGeneric", generics: Some(g), where_clause: None, tuple_members, items, .. }), ..})
+            if tuple_members.is_empty() && items.is_empty() && matches_zero_generic_struct_generics(&g.data));
+        
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "GenericTuple", generics: Some(g), where_clause: Some(w), tuple_members, items, .. }), ..})
+            if tuple_members.len() == 3 && items.is_empty() && matches_generic_tuple_generics(&g.data) && matches_generic_tuple_where(&w.data));
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "GenericTupleNW", generics: Some(g), where_clause: None, tuple_members, items, .. }), ..})
+            if tuple_members.len() == 3 && items.is_empty() && matches_generic_tuple_generics(&g.data));
+        
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "GenericField", generics: Some(g), where_clause: Some(w), tuple_members, items, .. }), ..})
+            if tuple_members.is_empty() && items.len() == 1 && matches_generic_field_generics(&g.data) && matches_generic_field_where(&w.data));
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Struct(StructItem { identifier: "GenericFieldNW", generics: Some(g), where_clause: None, tuple_members, items, .. }), ..})
+            if tuple_members.is_empty() && items.len() == 1 && matches_generic_field_generics(&g.data));
+
+        assert_matches!(item(&mut parser), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn field_item() {
+        let mut parser = Parser::from(r#"
+            local x: ();
+            local y: thing;
+            "#);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Field(FieldItem { identifier: "x", return_type: ReturnType { kind: ReturnTypeKind::Tuple(..), .. }}), .. }));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Field(FieldItem { identifier: "y", return_type: ReturnType { kind: ReturnTypeKind::Path(..), .. }}), .. }));
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn feature_item() {
+        let mut parser = Parser::from(r#"
+            feature c::b::u {
+                func test(): u8;
+            }
+
+            feature c::b::u for x::y::z {
+                func test(): u8 { return 0; }
+            }"#);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Feature(FeatureItem { implementation: None, .. }), .. }));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Feature(FeatureItem { implementation: Some(_), .. }), .. }));
+        assert_matches!(item(&mut parser), None);
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn config_item() {
+        fn matches_members(m: &[ConfigMember<'_>]) -> bool {
+            let mut iter = m.iter();
+
+            assert_matches!(iter.next(), Some(ConfigMember { identifier: "Ver", expression: Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }}));
+            assert_matches!(iter.next(), Some(ConfigMember { identifier: "Sio", expression: Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }}));
+            assert_matches!(iter.next(), Some(ConfigMember { identifier: "N", expression: Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3)), .. }}));
+            true
+        }
+
+        let mut parser = Parser::from(r#"
+            config {
+                Ver = 1,
+                Sio = 2,
+                N = 3,
+            }"#);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Config(ConfigItem { members }), .. }) if matches_members(&members));
+        assert_matches!(item(&mut parser), None);
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn func_item() {
+        fn matches_abstract_fn_params(p: &[FuncParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(FuncParam::SelfP));
+            assert_matches!(iter.next(), Some(FuncParam::Typed("a", ReturnType { kind: ReturnTypeKind::Path(Path { identifiers, .. }), .. })) if *identifiers == ["b"]);
+            assert_matches!(iter.next(), Some(FuncParam::Typed("c", ReturnType { kind: ReturnTypeKind::Array(_), .. })));
+            assert_matches!(iter.next(), Some(FuncParam::Typed("e", ReturnType { kind: ReturnTypeKind::Nullable(_), .. })));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_normal_fn_params(p: &[FuncParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(FuncParam::Typed("a", ReturnType { kind: ReturnTypeKind::Path(Path { identifiers, .. }), .. })) if *identifiers == ["b"]);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_abstract_generic_fn_generics(p: &[GenericParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "T", constraits: Some(g), .. }) if g.len() == 2);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_abstract_generic_fn_params(p: &[FuncParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(FuncParam::SelfP));
+            assert_matches!(iter.next(), Some(FuncParam::Typed("a", ..)));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_abstract_generic_where_fn_generics(p: &[GenericParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "X", constraits: None, .. }));
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "Y", constraits: None, .. }));
+            assert_matches!(iter.next(), Some(GenericParam { identifier: "Z", constraits: Some(c), .. }) if c.len() == 1);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_abstract_generic_where_fn_where(p: &[GenericConstrait<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(GenericConstrait { identifier: "X", constraits, .. }) if constraits.len() == 1);
+            assert_matches!(iter.next(), Some(GenericConstrait { identifier: "Y", constraits, .. }) if constraits.len() == 2);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_abstract_generic_where_fn_params(p: &[FuncParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(FuncParam::SelfP));
+            assert_matches!(iter.next(), Some(FuncParam::Typed("x", ..)));
+            assert_matches!(iter.next(), Some(FuncParam::Typed("y", ..)));
+            assert_matches!(iter.next(), Some(FuncParam::Typed("z", ..)));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from(r#"
+            func abstract(self, a: b, c: d[], e: f?): h::h::h;
+            func normal(a: b): hhh { a; b; c; }
+            func empty() {}
+            func empty_abstract();
+            func abstract_generics[T: a::b::c + x::y::z](self, a: T): h::h::h;
+            func abstract_generics_where[X, Y, Z: x::y::z](self, x: X, y: Y, z: Z): h::h::h where X: a::b::c, Y: a::b::c + d::e::f;
+            func abstract_generics_where_nr[X, Y, Z: x::y::z](self, x: X, y: Y, z: Z) where X: a::b::c, Y: a::b::c + d::e::f;
+            "#);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Func(FuncItem { identifier: "abstract", params, block: None, return_type: Some(..), generics: None, where_clause: None }), .. })
+            if matches_abstract_fn_params(&params));
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Func(FuncItem { identifier: "normal", params, block: Some(..), return_type: Some(..), generics: None, where_clause: None }), .. })
+            if matches_normal_fn_params(&params));
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Func(FuncItem { identifier: "empty", params, block: Some(..), return_type: None, generics: None, where_clause: None }), .. })
+            if params.is_empty());
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Func(FuncItem { identifier: "empty_abstract", params, block: None, return_type: None, generics: None, where_clause: None }), .. })
+            if params.is_empty());
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Func(FuncItem { identifier: "abstract_generics", generics: Some(g), where_clause: None, params, block: None, return_type: Some(..) }), .. })
+            if matches_abstract_generic_fn_generics(&g.data) && matches_abstract_generic_fn_params(&params));
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Func(FuncItem { identifier: "abstract_generics_where", generics: Some(g), where_clause: Some(w), params, block: None, return_type: Some(..) }), .. })
+            if matches_abstract_generic_where_fn_generics(&g.data) && matches_abstract_generic_where_fn_params(&params) && matches_abstract_generic_where_fn_where(&w.data));
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Func(FuncItem { identifier: "abstract_generics_where_nr", generics: Some(g), where_clause: Some(w), params, block: None, return_type: None }), .. })
+            if matches_abstract_generic_where_fn_generics(&g.data) && matches_abstract_generic_where_fn_params(&params) && matches_abstract_generic_where_fn_where(&w.data));
+
+        assert_matches!(item(&mut parser), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn sig_item() {
+        let mut parser = Parser::from("sig empty; sig[x::y::z] deftype; sig[a::b::c[]] arrtype; sig[m::n::p?] nulltype; sig[(a, b, c)] tuptype;");
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Sig(SigItem { sig_type: None, identifier: "empty" }), .. }));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Sig(SigItem { sig_type: Some(ReturnType { kind: ReturnTypeKind::Path(..), .. }), identifier: "deftype" }), .. }));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Sig(SigItem { sig_type: Some(ReturnType { kind: ReturnTypeKind::Array(..), .. }), identifier: "arrtype" }), .. }));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Sig(SigItem { sig_type: Some(ReturnType { kind: ReturnTypeKind::Nullable(..), .. }), identifier: "nulltype" }), .. }));
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Sig(SigItem { sig_type: Some(ReturnType { kind: ReturnTypeKind::Tuple(..), .. }), identifier: "tuptype" }), .. }));
+        assert!(parser.errors.is_empty());
+        assert_matches!(item(&mut parser), None);
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn visibility_item() {
+        let mut parser = Parser::from("pub sig empty;");
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::Visible(.., item), .. }) if matches!(&*item, Item { kind: ItemKind::Sig(..), .. }));
+        assert_matches!(item(&mut parser), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn attribute_collected_item() {
+        fn matches_attribute_paths(p: &[Path<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(Path { identifiers, .. }) if identifiers == &["attrib1"]);
+            assert_matches!(iter.next(), Some(Path { identifiers, .. }) if identifiers == &["x", "attrib2"]);
+            assert_matches!(iter.next(), Some(Path { identifiers, .. }) if identifiers == &["y", "z", "attrib3"]);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from(r#"
+            #attrib1,x::attrib2
+            #y::z::attrib3,
+            sig empty;
+            "#);
+
+        assert_matches!(item(&mut parser), Some(Item { kind: ItemKind::AttributeCollectedItem(attributes, sig), .. })
+            if matches_attribute_paths(&attributes) && matches!(sig.kind, ItemKind::Sig(..)));
+        assert_matches!(item(&mut parser), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn return_types() {
+        fn matches_inner_type(r: &ReturnType<'_>, i: &[&'_ str]) -> bool {
+            matches!(r, ReturnType { kind: ReturnTypeKind::Path(Path { identifiers, .. }, ..), .. } if identifiers == i)
+        }
+
+        fn matches_tuple(r: &[ReturnType<'_>]) -> bool {
+            let mut iter = r.iter();
+
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Path(..), .. }));
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Nullable(_), .. }));
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Nullable(t), .. }) if matches!(&**t, ReturnType { kind: ReturnTypeKind::Array(_), .. }));
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Tuple(t), .. }) if t.len() == 3);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_generic_parameters(r: &[ReturnType<'_>]) -> bool {
+            let mut iter = r.iter();
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Path(Path { identifiers, .. }), .. }) if identifiers == &["b"]);
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Generic(l, generics), .. })
+                if matches!(l.kind, ReturnTypeKind::Path(..)) && matches!(generics.first().map(|t| &t.kind), Some(ReturnTypeKind::Path(..))));
+            assert_matches!(iter.next(), Some(ReturnType { kind: ReturnTypeKind::Generic(l, generics), .. })
+                if matches!(l.kind, ReturnTypeKind::Path(..)) && generics.len() == 2);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from("xaylon::yaylon::zaylon a::b::c[] m::n::p[]? k::l::m?[] (x::y::z, a::b::c?, m::n::p[]?, (a, b, c)) a[b, c[d], e[f, g]]");
+
+        assert_matches!(return_type(&mut parser), Some(ReturnType { kind: ReturnTypeKind::Path(Path { identifiers, .. }, ..), .. }) if identifiers == ["xaylon", "yaylon", "zaylon"]);
+        assert_matches!(return_type(&mut parser), Some(ReturnType { kind: ReturnTypeKind::Array(ty), .. }) if matches_inner_type(&ty, &["a", "b", "c"]));
+        assert_matches!(return_type(&mut parser), Some(ReturnType { kind: ReturnTypeKind::Nullable(ty), .. }) if matches!(&*ty, ReturnType { kind: ReturnTypeKind::Array(..), .. }));
+        assert_matches!(return_type(&mut parser), Some(ReturnType { kind: ReturnTypeKind::Array(ty), .. }) if matches!(&*ty, ReturnType { kind: ReturnTypeKind::Nullable(_), .. }));
+        assert_matches!(return_type(&mut parser), Some(ReturnType { kind: ReturnTypeKind::Tuple(t), .. }) if matches_tuple(&t));
+        assert_matches!(return_type(&mut parser), Some(ReturnType { kind: ReturnTypeKind::Generic(ty, generics), .. })
+            if matches!(&*ty, ReturnType { kind: ReturnTypeKind::Path(..), .. }) && matches_generic_parameters(&generics));
+        assert_matches!(return_type(&mut parser), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+}
