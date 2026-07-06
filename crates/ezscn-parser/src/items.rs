@@ -238,9 +238,6 @@ pub fn func_item<'t>(parser: &mut Parser<'t>) -> Option<Item<'t>> {
     parser.advance_until_kind(TokenKind::ParanthesisLeft)?;
     let params = parser.comma_seperated_map(TokenKind::ParanthesisRight, func_param)?;
     parser.advance_until_kind(TokenKind::ParanthesisRight)?;
-    let where_clause = where_clause(parser)
-        .ok()?;
-
     let return_type = if parser.next_if_kind(TokenKind::Colon).is_some() {
         Some(return_type(parser)?)
     } else {
