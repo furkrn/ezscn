@@ -161,3 +161,101 @@ pub fn continue_statement<'t>(parser: &mut Parser<'t>) -> Option<Statement<'t>> 
 
     Some(Statement { kind, span })
 }
+
+#[cfg(test)]
+mod tests {
+    use core::assert_matches;
+    use crate::items::statement_item;
+    use super::*;
+
+    #[test]
+    pub fn expression_statement() {
+        let mut parser = Parser::from("5;6;e;hello();ereturn");
+
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Expression(_, false), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Expression(_, false), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Expression(_, false), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Expression(_, false), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Expression(_, true), .. }), .. }));
+        assert!(parser.errors.is_empty());
+    }
+
+    #[test]
+    pub fn return_statement() {
+        let mut parser = Parser::from("return 5; return 6; return 7; return;return");
+
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Return(Some(_)), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Return(Some(_)), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Return(Some(_)), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Return(None), .. }), .. }));
+        assert!(parser.errors.is_empty());
+        assert_matches!(statement_item(&mut parser), None);
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn let_statement() {
+        let mut parser = Parser::from("let c = 7; let (c, d) = 8; let i; let (_, _r, g) = -1; let s: (); let c: () = 0;");
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Let(idents, None, Some(..)), .. }), .. })
+            if idents == [IdentifierOrUnderscore::Identifier("c")]);
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Let(idents, None, Some(..)), .. }), .. })
+            if idents == [IdentifierOrUnderscore::Identifier("c"), IdentifierOrUnderscore::Identifier("d")]);
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Let(idents, None, None), .. }), .. })
+            if idents == [IdentifierOrUnderscore::Identifier("i")]);
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Let(idents, None, Some(..)), .. }), .. })
+            if idents == [IdentifierOrUnderscore::Underscore, IdentifierOrUnderscore::Identifier("_r"), IdentifierOrUnderscore::Identifier("g")]);
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Let(idents, Some(_), None), .. }), .. })
+            if idents == [IdentifierOrUnderscore::Identifier("s")]);
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Let(idents, Some(_), Some(_)), .. }), .. })
+            if idents == [IdentifierOrUnderscore::Identifier("c")]);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn for_statement() {
+        let mut parser = Parser::from(r#"for _ in x { a; } for z in y { b; } for m in n { c; } for (a, b, c) in l { d; }"#);
+
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::ForLoop(ForLoopStatement { identifiers, .. }), .. }), .. })
+            if identifiers == [IdentifierOrUnderscore::Underscore]);
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::ForLoop(ForLoopStatement { identifiers, .. }), .. }), .. })
+            if identifiers == [IdentifierOrUnderscore::Identifier("z")]);
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::ForLoop(ForLoopStatement { identifiers, .. }), .. }), .. })
+            if identifiers == [IdentifierOrUnderscore::Identifier("m")]);
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::ForLoop(ForLoopStatement { identifiers, .. }), .. }), .. })
+            if identifiers == [IdentifierOrUnderscore::Identifier("a"), IdentifierOrUnderscore::Identifier("b"), IdentifierOrUnderscore::Identifier("c")]);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn while_statement() {
+        let mut parser = Parser::from(r#"while x { a; } while y { b; } while z { c; }"#);
+
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::WhileLoop(..), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::WhileLoop(..), .. }), .. }));
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::WhileLoop(..), .. }), .. }));
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn break_statement() {
+        let mut parser = Parser::from("break; break");
+
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Break, .. }), .. }));
+        assert!(parser.errors.is_empty());
+        assert_matches!(statement_item(&mut parser), None);
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn continue_statement() {
+        let mut parser = Parser::from("continue; continue");
+
+        assert_matches!(statement_item(&mut parser), Some(Item { kind: ItemKind::Statement(Statement { kind: StatementKind::Continue, .. }), .. }));
+        assert!(parser.errors.is_empty());
+        assert_matches!(statement_item(&mut parser), None);
+        assert!(parser.reached_eof());
+    }
+}
