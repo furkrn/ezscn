@@ -576,7 +576,7 @@ pub fn string_literal<'t>(parser: &mut Parser<'t>) -> Option<Expression<'t>> {
         span.end() - 1
     };
 
-    let raw_str = &parser.input[quote_start..end];
+    let raw_str = &parser.input[quote_start + 1..end];
     let string_literal = if options.contains(StringOptions::RAWSTR) {
         StringLiteral::Borrowed(raw_str)
     } else {
