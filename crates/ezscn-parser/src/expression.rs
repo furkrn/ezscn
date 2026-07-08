@@ -826,5 +826,868 @@ fn closure_param<'t>(parser: &mut Parser<'t>) -> Option<ClosureParam<'t>> {
 
 #[cfg(test)]
 mod tests {
+    use core::assert_matches;
     use super::*;
+
+    macro_rules! assert_matches_capture {
+        ($left: expr, $(|)? $($pattern:pat_param)|+ $(if $guard: expr)? => ($($cap:ident),+)) => {
+            match $left {
+                $($pattern)|+ $(if $guard)? => ($($cap),+),
+                left => {
+                    assert_matches!(left, $($pattern)|+ $(if $guard)?);
+                    panic!()
+                }
+            }
+        };
+    }
+
+    #[test]
+    pub fn primary_access_expression() {
+        let mut parser = Parser::from("self ident _ident $ident @ident");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Access(AccessExpression::SelfAccess), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident")), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("_ident")), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("$ident")), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("@ident")), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[allow(clippy::zero_prefixed_literal, reason = "readability")]
+    #[test]
+    pub fn primary_tuple_expression() {
+        fn matches_expr(values: &[Expression<'_>]) -> bool {
+            let mut iter = values.iter();
+
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(094)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(23)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3214)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(25)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(654745)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Array(t), .. }) if t.is_empty());
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from("(094,23,3214,25,654745,[],)");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Tuple(e), .. }) if matches_expr(&e));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn empty_tuple_expression() {
+        let mut parser = Parser::from("()");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Tuple(e), .. }) if e.is_empty());
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[allow(clippy::zero_prefixed_literal, reason = "readability")]
+    #[test]
+    pub fn primary_array_expression() {
+        fn matches_expr(values: &[Expression<'_>]) -> bool {
+            let mut iter = values.iter();
+
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(094)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(23)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3214)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(25)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(654745)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Array(t), .. }) if t.is_empty());
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from("[094,23,3214,25,654745,[]]");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Array(e), .. }) if matches_expr(&e));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn empty_array_expression() {
+        let mut parser = Parser::from("[]");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Array(e), .. }) if e.is_empty());
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_string_literal_expression() {
+        fn matches_string_sequence(p: Option<Expression<'_>>, str: &str) {
+            assert_matches!(p, Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::String(s)), ..}) if s == str)
+        }
+
+        let mut parser = Parser::from(r#"
+            "" "ezscn" "escaped ezscn \t\t\n"
+                r"raw ezscn \ \ \\ \\\\ \e\e" m"ez
+                scn"m mr"wtf"m MR"tf"m rm"TFF"m RM"pat"m
+                "#);
+        
+        matches_string_sequence(parser.expression(), "");
+        matches_string_sequence(parser.expression(), "ezscn");
+        matches_string_sequence(parser.expression(), "escaped ezscn \t\t\n");
+        matches_string_sequence(parser.expression(), r#"raw ezscn \ \ \\ \\\\ \e\e"#);
+        matches_string_sequence(parser.expression(), r#"ez
+                scn"#);
+        matches_string_sequence(parser.expression(), "wtf");
+        matches_string_sequence(parser.expression(), "tf");
+        matches_string_sequence(parser.expression(), "TFF");
+        matches_string_sequence(parser.expression(), "pat");
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_char_literal_expression() {
+        fn matches_char_sequence(e: Option<Expression<'_>>, char: char) {
+            assert_matches!(e, Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Char(c)), .. }) if c == char)
+        }
+
+        let mut parser = Parser::from(r#"'a' '!' 'ş' '\a' '\b' '\e' '\f' '\n'
+            '\r' '\t' '\v' '\\' '\?' '\"' '\xF' '\x1111'
+            '\uFFFF' '\U0010FFFE'"#);
+
+        matches_char_sequence(parser.expression(), 'a');
+        matches_char_sequence(parser.expression(), '!');
+        matches_char_sequence(parser.expression(), 'ş');
+        matches_char_sequence(parser.expression(), 0x07 as char);
+        matches_char_sequence(parser.expression(), 0x08 as char);
+        matches_char_sequence(parser.expression(), 0x1B as char);
+        matches_char_sequence(parser.expression(), 0x0C as char);
+        matches_char_sequence(parser.expression(), '\n');
+        matches_char_sequence(parser.expression(), '\r');
+        matches_char_sequence(parser.expression(), '\t');
+        matches_char_sequence(parser.expression(), 0x0B as char);
+        matches_char_sequence(parser.expression(), '\\');
+        matches_char_sequence(parser.expression(), 0x3F as char);
+        matches_char_sequence(parser.expression(), '\"');
+        matches_char_sequence(parser.expression(), '\u{F}');
+        matches_char_sequence(parser.expression(), '\u{1111}');
+        matches_char_sequence(parser.expression(), '\u{FFFF}');
+        matches_char_sequence(parser.expression(), '\u{10FFFE}');
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_integer_literal_expression() {
+        let mut parser = Parser::from("0 2 43278493287 4277894234 7532412832198 54743758934981 48481881818818");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(43278493287)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(4277894234)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(7532412832198)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(54743758934981)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(48481881818818)), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_float_literal_expression() {
+        let mut parser = Parser::from("0.33 0.312321 0.3214123567 0.4234235E+1 0.43325723985734895e-1 0.423742374e-1321321 0.1e-1");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Floating(OrderedFloat(0.33))), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Floating(OrderedFloat(0.312321))), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Floating(OrderedFloat(0.3214123567))), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Floating(OrderedFloat(0.4234235E+1))), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Floating(OrderedFloat(0.43325723985734895e-1))), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Floating(OrderedFloat(0.423742374e-1321321))), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Floating(OrderedFloat(0.1e-1))), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_boolean_literal_expression() {
+        let mut parser = Parser::from("true false false true");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Bool(true)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Bool(false)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Bool(false)), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Bool(true)), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_null_literal_expression() {
+        let mut parser = Parser::from("null null null");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Null), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Null), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Null), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_match_expression() {
+        fn matches_arms(a: &[MatchArm<'_>]) -> bool {
+            let mut iter = a.iter();
+
+            assert_matches!(iter.next(), Some(MatchArm {
+                expression: Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("z")), .. }),
+                if_clause: None,
+                block })
+                    if block.data.len() == 1);
+
+            assert_matches!(iter.next(), Some(MatchArm {
+                expression: Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("x")), .. }),
+                if_clause: None,
+                block })
+                    if block.data.len() == 1);
+
+            assert_matches!(iter.next(), Some(MatchArm {
+                expression: Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("y")), .. }),
+                if_clause: None,
+                block })
+                    if block.data.len() == 1);
+
+            assert_matches!(iter.next(), Some(MatchArm {
+                expression: Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("m")), .. }),
+                if_clause: None,
+                block })
+                    if block.data.len() == 1);
+
+            assert_matches!(iter.next(), Some(MatchArm {
+                expression: Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("n")), .. }),
+                if_clause: Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("l")), .. }),
+                block })
+                    if block.data.len() == 1);
+
+            assert_matches!(iter.next(), Some(MatchArm {
+                expression: None,
+                if_clause: None,
+                block })
+                    if block.data.len() == 1);
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from(r#"match x {
+                z => 1,
+                x => 2,
+                y => 3,
+                m => {
+                    4;
+                },
+                n if l => 0,
+                _ => 0
+            }
+            "#);
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Match(matcher, arms), .. })
+            if matches_arms(&arms) && matches!(matcher.kind, ExpressionKind::Access(..)));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_if_expression() {
+        let mut parser = Parser::from(r#"
+            if x {
+                a;
+            } else if y {
+                b;
+            } else if z {
+                c;
+            } else {
+                d;
+            }
+
+            if i { e; }
+
+            if l {
+                f;
+            } else {
+                g;
+            }
+
+            if k {
+                h;
+            } else if m {
+                k;
+            }
+
+
+            "#);
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::If(_, else_if, Some(_)), .. }) if else_if.len() == 2);
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::If(_, else_if, None), .. }) if else_if.is_empty());
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::If(_, else_if, Some(_)), .. }) if else_if.is_empty());
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::If(_, else_if, None), .. }) if else_if.len() == 1);
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_new_expression() {
+        let mut parser = Parser::from(r#"
+            new EmptyIdent
+            new EmptyIdentCBL {}
+            new IdentCBLWithInits {
+                S = 0,
+                I = 2,
+                H = 1,
+                T = 3,
+            }
+            new IdentCBLWithOptionalInits {
+            a,b,c,d = 5,
+            }"#);
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::New(.., NewExprType::Zero), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::New(.., NewExprType::Field(props)), .. }) if props.is_empty());
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::New(.., NewExprType::Field(props)), .. }) if props.len() == 4);
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::New(.., NewExprType::Field(props)), .. }) if props.len() == 4);
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn primary_closure_expression() {
+        fn matches_second_closure_params(p: &[ClosureParam<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(ClosureParam { identifier: "a", return_type: None, .. }));
+            assert_matches!(iter.next(), Some(ClosureParam { identifier: "b", return_type: Some(_), .. }));
+            assert_matches!(iter.next(), Some(ClosureParam { identifier: "c", return_type: None, .. }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from("$() => {} $(a, b: X, c) => {}");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Closure(params, ..), .. }) if params.is_empty());
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Closure(params, ..), .. }) if matches_second_closure_params(&params));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
+
+    #[test]
+    pub fn assignment_expression() {
+        let mut parser = Parser::from("a = b = c d <<= 0 e >>= 1 f &= 2 g |= 3 h ^= 4 i ~= 5 j *= 6 k /= 7 l += 8 m -= 9 n %= 10");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(left, AssignmentOperator::Assign, _), .. })
+            if matches!(&*left, Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Assign, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::BitLeft, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::BitRight, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::And, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Or, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Xor, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Complement, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Multiplication, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Division, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Addition, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Substraction, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Assignment(_, AssignmentOperator::Modulo, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn conditional_or_expression() {
+        let mut parser = Parser::from("a || b || c");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Conditional(l, ConditionalOperator::Or, _), .. })
+            if matches!(&*l, Expression { kind: ExpressionKind::Conditional(_, ConditionalOperator::Or, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn conditional_and_expression() {
+        let mut parser = Parser::from("a && b && c");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Conditional(l, ConditionalOperator::And, _), .. })
+            if matches!(&*l, Expression { kind: ExpressionKind::Conditional(_, ConditionalOperator::And, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn logical_or_expression() {
+        let mut parser = Parser::from("a | b | c");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Logical(l, LogicalOperator::Or, _), .. })
+            if matches!(&*l, Expression { kind: ExpressionKind::Logical(_, LogicalOperator::Or, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn logical_xor_expression() {
+        let mut parser = Parser::from("a ^ b ^ c");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Logical(l, LogicalOperator::Xor, _), .. })
+            if matches!(&*l, Expression { kind: ExpressionKind::Logical(_, LogicalOperator::Xor, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn logical_and_expression() {
+        let mut parser = Parser::from("a & b & c");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Logical(l, LogicalOperator::And, _), .. })
+            if matches!(&*l, Expression { kind: ExpressionKind::Logical(_, LogicalOperator::And, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn equality_expression() {
+        let mut parser = Parser::from("a != b c == d");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Equality(_, EqualityOperator::NotEquals, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Equality(_, EqualityOperator::Equals, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn comparision_expression() {
+        let mut parser = Parser::from("a < b c > d e >= f g <= h");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Comparision(_, ComparisionOperator::LessThan, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Comparision(_, ComparisionOperator::GreaterThan, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Comparision(_, ComparisionOperator::GreaterThanEquals, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Comparision(_, ComparisionOperator::LessThanEquals, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn shift_expression() {
+        let mut parser = Parser::from("0 >> 1 2 << 2 5 << 2 >> 1");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Binary(_, BinaryOperator::BitRight, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Binary(_, BinaryOperator::BitLeft, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Binary(l, BinaryOperator::BitRight, _), .. })
+            if matches!(&*l, Expression { kind: ExpressionKind::Binary(_, BinaryOperator::BitLeft, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    #[allow(unused_variables, reason = "rustc doesn't care about captures...")]
+    pub fn additive_expression() {
+        let mut parser = Parser::from("0 + 1 + 2 + 3 - 4");
+
+        let (left, right) = assert_matches_capture!(parser.expression(), Some(Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Substraction, right), .. }) => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(4)), .. });
+        let (left, right) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Addition, right), .. } => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3)), .. });
+        let (left, right) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Addition, right), .. } => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. });
+        let (left, right) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Addition, right), .. } => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. });
+        assert_matches!(*left, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), ..});
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    #[allow(unused_variables, reason = "rustc doesn't care about captures...")]
+    pub fn multiplicative_expression() {
+        let mut parser = Parser::from("0 * 1 * 2 * 3 / 3 % 6");
+
+
+        let (left, right) = assert_matches_capture!(parser.expression(), Some(Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Modulo, right), .. }) => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(6)), .. });
+        let (left, right) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Division, right), .. } => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3)), .. });
+        let (left, right) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Multiplication, right), .. } => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3)), .. });
+        let (left, right) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Multiplication, right), .. } => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. });
+        let (left, right) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Binary(left, BinaryOperator::Multiplication, right), .. } => (left, right));
+        assert_matches!(*right, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. });
+        assert_matches!(*left, Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), ..});
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn unary_expression() {
+        let mut parser = Parser::from("!a ~b");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Unary(UnaryOperator::Not, _), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Unary(UnaryOperator::Complement, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn unary_minus() {
+        let mut parser = Parser::from("-a");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Unary(UnaryOperator::Negative, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn unary_positive() {
+        let mut parser = Parser::from("+a");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Unary(UnaryOperator::Plus, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn pre_increment() {
+        let mut parser = Parser::from("++x");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Unary(UnaryOperator::Increment, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn pre_decrement() {
+        let mut parser = Parser::from("--x");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Unary(UnaryOperator::Decrement, _), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    #[allow(unused_variables, reason = "rustc doesn't care about captures...")]
+    pub fn postfix_combined() {
+        let mut parser = Parser::from("s.a[0]?.b()[a]++--");
+
+        let (left, right) = assert_matches_capture!(parser.expression(), Some(Expression { kind: ExpressionKind::Reference(left, right), .. }) => (left, right));
+        assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("s")), .. });
+
+        let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+        let index = assert_matches_capture!(*left, Expression { kind: ExpressionKind::ShortCircuit(exp), .. } => (exp));
+
+        let (acs, params) = assert_matches_capture!(*index, Expression { kind: ExpressionKind::Index(acs, params), .. } => (acs, params));
+        assert_matches!(*acs, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("a")), .. });
+        assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+        assert!(params.len() == 1);
+
+        let exp = assert_matches_capture!(*right, Expression { kind: ExpressionKind::PostOp(exp, PostOperator::Decrement), .. } => (exp));
+        let exp = assert_matches_capture!(*exp, Expression { kind: ExpressionKind::PostOp(exp, PostOperator::Increment), .. } => (exp));
+
+        let (left, params) = assert_matches_capture!(*exp, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+        assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("a")), .. }));
+        assert!(params.len() == 1);
+
+        let (left, params) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Call(left, params), .. } => (left, params));
+        assert!(params.is_empty());
+        assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("b")), .. });
+
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    #[allow(unused_variables, reason = "rustc doesn't care about captures...")]
+    pub fn postfix_call_expression() {
+        fn matches_first_expr(e: Option<Expression<'_>>) {
+            let left = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Call(left, params), .. }) if params.is_empty() => (left));
+            let left = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Call(left, params), .. } if params.is_empty() => (left));
+            let (left, params) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Call(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }));
+            assert!(params.len() == 1);
+
+            let (left, params) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Call(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }));
+            assert!(params.len() == 1);
+
+            let (left, params) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Call(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+            assert!(params.len() == 1);
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("s")), .. });
+        }
+
+        fn matches_second_expr(e: Option<Expression<'_>>) {
+            let left = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Call(left, params), .. }) if params.is_empty() => (left));
+            let (left, params) = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Call(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }));
+            assert!(params.len() == 1);
+
+            let left = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Call(left, params), .. } if matches_second_expr_args(&params) => (left));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("s")), .. });
+        }
+
+        fn matches_second_expr_args(p: &[Expression<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        fn matches_third_expr(e: Option<Expression<'_>>) {
+            let left = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Call(left, params), .. }) if params.is_empty() => (left));
+            let left = assert_matches_capture!(*left, Expression { kind: ExpressionKind::Call(left, params), .. } if matches_third_expr_args(&params) => (left));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("s")), .. });
+        }
+
+        fn matches_third_expr_args(p: &[Expression<'_>]) -> bool {
+            let mut iter = p.iter();
+
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }));
+            assert_matches!(iter.next(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }));
+            assert_matches!(iter.next(), None);
+            true
+        }
+
+        let mut parser = Parser::from("s(0)(1)(2)()() s(0, 1)(2)() s(0, 1, 2)() s()");
+
+        matches_first_expr(parser.expression());
+        matches_second_expr(parser.expression());
+        matches_third_expr(parser.expression());
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Call(left, params), .. })
+            if params.is_empty() && matches!(left.kind, ExpressionKind::Access(AccessExpression::Identifier("s"))));
+
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    #[allow(unused_variables, reason = "rustc doesn't care about captures...")]
+    pub fn postfix_index_expression() {
+        fn matches_first_expr(e: Option<Expression<'_>>) {
+            let (left_index, params) = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Index(left, params), .. }) => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(5)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(4)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }));
+            assert!(params.len() == 1);
+
+            let (left, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+            assert!(params.len() == 1);
+
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(..), .. });
+        }
+
+        fn matches_second_expr(e: Option<Expression<'_>>) {
+            let (left_index, params) = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Index(left, params), .. }) => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(4)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }));
+            assert!(params.len() == 1);
+
+            let (left, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+            assert!(params.len() == 1);
+
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(..), .. });
+        }
+
+        fn matches_third_expr(e: Option<Expression<'_>>) {
+            let (left_index, params) = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Index(left, params), .. }) => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(3)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }));
+            assert!(params.len() == 1);
+
+            let (left, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+            assert!(params.len() == 1);
+
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(..), .. });
+        }
+
+        fn matches_forth_expr(e: Option<Expression<'_>>) {
+            let (left_index, params) = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Index(left, params), .. }) => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(2)), .. }));
+            assert!(params.len() == 1);
+
+            let (left_index, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }));
+            assert!(params.len() == 1);
+
+            let (left, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+            assert!(params.len() == 1);
+
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(..), .. });
+        }
+
+        fn matches_fifth_expr(e: Option<Expression<'_>>) {
+            let (left_index, params) = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Index(left, params), .. }) => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(1)), .. }));
+            assert!(params.len() == 1);
+
+            let (left, params) = assert_matches_capture!(*left_index, Expression { kind: ExpressionKind::Index(left, params), .. } => (left, params));
+            assert_matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(LiteralExpression::Integer(0)), .. }));
+            assert!(params.len() == 1);
+
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(..), .. });
+        }
+
+        let mut parser = Parser::from("s[0][1][2][3][4][5] s[0][1][2][3][4] s[0][1][2][3] s[0][1][2] s[0][1] s[0]");
+
+        matches_first_expr(parser.expression());
+        matches_second_expr(parser.expression());
+        matches_third_expr(parser.expression());
+        matches_forth_expr(parser.expression());
+        matches_fifth_expr(parser.expression());
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Index(left, params), .. })
+            if matches!(left.kind, ExpressionKind::Access(..)) && params.len() == 1 &&
+                matches!(params.first(), Some(Expression { kind: ExpressionKind::Literal(..), .. })));
+
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    #[allow(unused_variables, reason = "rustc doesn't care about captures...")]
+    pub fn postfix_reference_expression() {
+        fn matches_second_expr(e: Option<Expression<'_>>) {
+            let (left, right) = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Reference(left, right), .. }) => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident")), .. });
+            let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident2")), .. });
+            assert_matches!(*right, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident3")), .. });
+        }
+
+        fn matches_third_expr(e: Option<Expression<'_>>) {
+            let (left, right) = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Reference(left, right), .. }) => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident1")), .. });
+            let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident2")), .. });
+            let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident3")), .. });
+            let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident4")), .. });
+            assert_matches!(*right, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident5")), .. });
+        }
+
+        fn matches_forth_expr(e: Option<Expression<'_>>) {
+            let (left, right) = assert_matches_capture!(e, Some(Expression { kind: ExpressionKind::Reference(left, right), .. }) => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::SelfAccess), .. });
+            let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::SelfAccess), .. });
+            let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident")), .. });
+            let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::SelfAccess), .. });
+            let (left, right) = assert_matches_capture!(*right, Expression { kind: ExpressionKind::Reference(left, right), .. } => (left, right));
+            assert_matches!(*left, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("ident")), .. });
+            assert_matches!(*right, Expression { kind: ExpressionKind::Access(AccessExpression::Identifier("a")), .. });
+        }
+
+        let mut parser = Parser::from("self.ident ident.ident2.ident3 ident1.ident2.ident3.ident4.ident5 self.self.ident.self.ident.a self.0");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Reference(l, r), .. })
+            if matches!(l.kind, ExpressionKind::Access(AccessExpression::SelfAccess)) && matches!(r.kind, ExpressionKind::Access(AccessExpression::Identifier("ident"))));
+
+        matches_second_expr(parser.expression());
+        matches_third_expr(parser.expression());
+        matches_forth_expr(parser.expression());
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::Reference(l, r), .. })
+            if matches!(l.kind, ExpressionKind::Access(AccessExpression::SelfAccess)) && matches!(r.kind, ExpressionKind::Literal(LiteralExpression::Integer(0))));
+
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn postfix_post_op_expression() {
+        let mut parser = Parser::from("a++ a--");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::PostOp(_, PostOperator::Increment), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::PostOp(_, PostOperator::Decrement), .. }));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof())
+    }
+
+    #[test]
+    pub fn postfix_short_circuit_expression() {
+        let mut parser = Parser::from("a? b?? c???");
+
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::ShortCircuit(_), .. }));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::ShortCircuit(e), .. }) if matches!(e.kind, ExpressionKind::ShortCircuit(_)));
+        assert_matches!(parser.expression(), Some(Expression { kind: ExpressionKind::ShortCircuit(e), .. })
+            if matches!(&e.kind, ExpressionKind::ShortCircuit(x)
+                if matches!(x.kind, ExpressionKind::ShortCircuit(_))));
+        assert_matches!(parser.expression(), None);
+        assert!(parser.errors.is_empty());
+        assert!(parser.reached_eof());
+    }
 }
